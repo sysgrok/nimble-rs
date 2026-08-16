@@ -11,6 +11,8 @@ use nimble_rs_sys as sys;
 
 use crate::{BleError, ConnHandle};
 
+#[cfg(feature = "gatt-client")]
+pub mod client;
 #[cfg(feature = "gatt-server")]
 pub mod server;
 

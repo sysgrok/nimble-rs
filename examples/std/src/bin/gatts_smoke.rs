@@ -65,7 +65,7 @@ fn on_gap_event(event: GapEvent) -> i32 {
             DISCONNECTED.store(true, Ordering::SeqCst);
         }
         GapEvent::Mtu { value, .. } => log::info!("MTU: {value}"),
-        GapEvent::Other => (),
+        _ => (),
     }
     0
 }

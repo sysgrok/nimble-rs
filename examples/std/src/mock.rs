@@ -130,6 +130,25 @@ impl MockController {
                 self.complete(opcode, &[]);
                 inject_event(&[0x3e, 12, 0x04, 0, cmd[3], cmd[4], 0x01, 0, 0, 0, 0, 0, 0, 0]);
             }
+            // LE Create Connection: async - ack it, then deliver the LE
+            // Connection Complete meta event (role: master; the peer address
+            // comes from the command parameters)
+            0x200d => {
+                self.complete(opcode, &[]);
+                #[rustfmt::skip]
+                inject_event(&[
+                    0x3e, 19, 0x01,
+                    0x00,       // status
+                    0x01, 0x00, // handle 1
+                    0x00,       // role: master
+                    cmd[8],     // peer addr type
+                    cmd[9], cmd[10], cmd[11], cmd[12], cmd[13], cmd[14],
+                    0x28, 0x00, // conn interval
+                    0x00, 0x00, // latency
+                    0xf4, 0x01, // supervision timeout
+                    0x00,       // master clock accuracy
+                ]);
+            }
             // LE Read Buffer Size
             0x2002 => self.complete(opcode, &[0xfb, 0, 8]),
             // LE Read Local Supported Features: plain 4.2 feature set
@@ -184,6 +203,14 @@ impl Transport for MockController {
             PacketKind::Cmd => self.handle_cmd(&raw[..size]),
             PacketKind::AclData => {
                 log::debug!("mock: ACL from host: {:02x?}", &raw[..size]);
+
+                // Return the controller buffer credit immediately (Number Of
+                // Completed Packets), or the host stalls after
+                // `LE Read Buffer Size`-many ACL packets
+                let handle = u16::from_le_bytes([raw[0], raw[1]]) & 0x0fff;
+                let [h0, h1] = handle.to_le_bytes();
+                inject_event(&[0x13, 5, 1, h0, h1, 1, 0]);
+
                 FROM_HOST_ACL
                     .try_send(Packet::from_slice(&raw[..size]).unwrap())
                     .expect("mock ACL queue full");

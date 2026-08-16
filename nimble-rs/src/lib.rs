@@ -27,6 +27,8 @@ mod fmt;
 pub mod gap;
 pub mod gatt;
 pub mod hci;
+#[cfg(feature = "l2cap")]
+pub mod l2cap;
 pub mod mbuf;
 mod mem;
 mod npl;
@@ -230,7 +232,8 @@ impl<F: ?Sized> CallbackSlot<F> {
 }
 
 static HOST_CALLBACK: CallbackSlot<dyn Fn(HostEvent) + Sync> = CallbackSlot::new();
-static GAP_CALLBACK: CallbackSlot<dyn Fn(gap::GapEvent) -> i32 + Sync> = CallbackSlot::new();
+static GAP_CALLBACK: CallbackSlot<dyn for<'a> Fn(gap::GapEvent<'a>) -> i32 + Sync> =
+    CallbackSlot::new();
 #[cfg(feature = "gatt-server")]
 static GATTS_CALLBACK: CallbackSlot<dyn for<'a> Fn(gatt::server::GattsEvent<'a>) -> u8 + Sync> =
     CallbackSlot::new();
@@ -269,6 +272,13 @@ pub(crate) unsafe extern "C" fn gap_event_cb(
                 gatt::server::GattsEvent::from_gap(event),
             ) {
                 cb(event);
+            }
+            0
+        }
+        #[cfg(feature = "gatt-client")]
+        sys::BLE_GAP_EVENT_NOTIFY_RX => {
+            if let Some(cb) = gatt::client::GATTC_CALLBACK.get() {
+                cb(gatt::client::GattcEvent::from_notify_rx(event));
             }
             0
         }
@@ -511,6 +521,10 @@ impl<S> Drop for BleDriver<S> {
         GAP_CALLBACK.set(None);
         #[cfg(feature = "gatt-server")]
         GATTS_CALLBACK.set(None);
+        #[cfg(feature = "gatt-client")]
+        gatt::client::GATTC_CALLBACK.set(None);
+        #[cfg(feature = "l2cap")]
+        l2cap::L2CAP_CALLBACK.set(None);
 
         // `port::deinit` tears the whole host down (including the GATT service
         // registry), after which the C side no longer references `self.services`

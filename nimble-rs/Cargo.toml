@@ -31,8 +31,8 @@ std = ["alloc", "critical-section/std"]
 alloc = []
 
 ## BLE roles (forwarded to `nimble-rs-sys`)
-peripheral = ["nimble-rs-sys/peripheral"]
-central = ["nimble-rs-sys/central"]
+peripheral = ["broadcaster", "nimble-rs-sys/peripheral"]
+central = ["observer", "nimble-rs-sys/central"]
 broadcaster = ["nimble-rs-sys/broadcaster"]
 observer = ["nimble-rs-sys/observer"]
 
