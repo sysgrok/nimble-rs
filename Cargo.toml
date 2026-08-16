@@ -1,0 +1,39 @@
+[workspace]
+members = ["nimble-rs-sys", "nimble-rs", "examples/std"]
+# `tests` is excluded because its binaries will use a driver harness whose
+# dependency requirements (executor, virtual controllers) conflict with the
+# `examples/std` crate; `xtask` is excluded as it is tooling, not a library.
+exclude = ["tests", "xtask"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ivmarkov/nimble-rs"
+
+[workspace.dependencies]
+nimble-rs-sys = { version = "0.1.0", path = "nimble-rs-sys" }
+nimble-rs = { version = "0.1.0", path = "nimble-rs" }
+
+bt-hci = "0.9"
+embassy-sync = "0.7"
+embassy-futures = "0.1"
+embassy-time = "0.5"
+critical-section = "1"
+heapless = "0.9"
+embedded-io = "0.7"
+embedded-io-async = "0.7"
+enumset = { version = "1", default-features = false }
+
+log = { version = "0.4", default-features = false }
+defmt = "1"
+
+# build deps
+anyhow = "1"
+bindgen = "0.72"
+cc = "1.1"
+env_logger = "0.11"
+
+[profile.release]
+debug = true

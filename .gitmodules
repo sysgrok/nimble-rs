@@ -1,0 +1,3 @@
+[submodule "nimble-rs-sys/esp-nimble"]
+	path = nimble-rs-sys/esp-nimble
+	url = https://github.com/espressif/esp-nimble.git

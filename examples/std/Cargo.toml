@@ -1,0 +1,19 @@
+[package]
+name = "nimble-rs-examples-std"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nimble-rs = { workspace = true, features = ["log"] }
+bt-hci = { workspace = true }
+embassy-sync = { workspace = true }
+embassy-futures = { workspace = true }
+embassy-time = { workspace = true, features = ["std", "generic-queue-16"] }
+embedded-io = { workspace = true, features = ["std"] }
+heapless = { workspace = true }
+futures-lite = "2"
+log = { version = "0.4", features = ["std"] }
+env_logger = "0.11"

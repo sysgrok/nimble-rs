@@ -1,0 +1,100 @@
+[package]
+name = "nimble-rs-sys"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Raw FFI bindings to the esp-nimble BLE host stack (Espressif fork of Apache NimBLE)"
+documentation = "https://docs.rs/nimble-rs-sys"
+readme = "../README.md"
+categories = ["embedded", "external-ffi-bindings", "hardware-support"]
+keywords = ["ble", "bluetooth", "nimble", "embedded"]
+links = "nimble"
+build = "build.rs"
+# Prune the esp-nimble submodule down to what the build actually consumes.
+exclude = [
+    "esp-nimble/apps",
+    "esp-nimble/babblesim",
+    "esp-nimble/docs",
+    "esp-nimble/targets",
+    "esp-nimble/tools",
+    "esp-nimble/nimble/controller",
+    "esp-nimble/nimble/drivers",
+    "esp-nimble/nimble/host/mesh",
+    "esp-nimble/nimble/host/test",
+    "esp-nimble/nimble/host/pts",
+    "esp-nimble/nimble/host/tools",
+    "esp-nimble/nimble/transport/apollo3",
+    "esp-nimble/nimble/transport/cdc",
+    "esp-nimble/nimble/transport/dialog_cmac",
+    "esp-nimble/nimble/transport/emspi",
+    "esp-nimble/nimble/transport/esp_ipc",
+    "esp-nimble/nimble/transport/esp_ipc_legacy",
+    "esp-nimble/nimble/transport/nrf5340",
+    "esp-nimble/nimble/transport/socket",
+    "esp-nimble/nimble/transport/uart",
+    "esp-nimble/nimble/transport/uart_ll",
+    "esp-nimble/nimble/transport/usb",
+    "esp-nimble/porting/examples",
+    "esp-nimble/porting/npl",
+    "esp-nimble/ext/nrf-cc310",
+    "esp-nimble/ext/rust-crypto",
+]
+
+[features]
+default = ["peripheral", "central", "gatt-client", "sm"]
+
+## BLE roles (map to `MYNEWT_VAL_BLE_ROLE_*`). A peripheral must be able to
+## broadcast and a central must be able to observe, hence the implications.
+peripheral = ["broadcaster"]
+central = ["observer"]
+broadcaster = []
+observer = []
+
+## GATT client procedures (`MYNEWT_VAL_BLE_GATTC`). The GATT *server* is always
+## compiled in (`MYNEWT_VAL_BLE_GATTS=1`) as nearly every BLE device needs it.
+gatt-client = []
+
+## Security Manager: `sm` enables both legacy and LE Secure Connections pairing;
+## `sm-sc-only` enables Secure-Connections-only mode. If both are enabled, `sm` wins.
+sm = []
+sm-sc-only = []
+
+## Extended (BLE 5) advertising - `MYNEWT_VAL_BLE_EXT_ADV`
+ext-adv = []
+
+## L2CAP connection-oriented channels: `MYNEWT_VAL_BLE_L2CAP_COC_MAX_NUM`.
+## Additive; the largest enabled value wins.
+l2cap-coc-1 = []
+l2cap-coc-2 = []
+l2cap-coc-4 = []
+l2cap-coc-8 = []
+
+## Maximum concurrent connections: `MYNEWT_VAL_BLE_MAX_CONNECTIONS` (reset value: 4).
+## Additive; the largest enabled value wins.
+max-connections-1 = []
+max-connections-2 = []
+max-connections-4 = []
+max-connections-8 = []
+max-connections-16 = []
+max-connections-32 = []
+
+## msys mbuf pool block count: `MYNEWT_VAL_MSYS_1_BLOCK_COUNT` (reset value: 20).
+## Additive; the largest enabled value wins.
+msys-count-12 = []
+msys-count-20 = []
+msys-count-32 = []
+msys-count-64 = []
+
+## Infrastructure features
+## `prebuilt` must select exactly the same knobs as the committed pre-generated
+## bindings/libraries were produced with (guarded by `features::prebuilt_validity`).
+prebuilt = ["peripheral", "central", "gatt-client", "sm"]
+force-generate-bindings = []
+use-gcc = []
+
+[build-dependencies]
+anyhow = { workspace = true }
+bindgen = { workspace = true }
+cc = { workspace = true }

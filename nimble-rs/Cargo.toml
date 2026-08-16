@@ -1,0 +1,70 @@
+[package]
+name = "nimble-rs"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Safe, async, cross-platform Rust API for the esp-nimble BLE host, over any bt-hci controller"
+documentation = "https://docs.rs/nimble-rs"
+readme = "../README.md"
+categories = ["embedded", "api-bindings", "hardware-support"]
+keywords = ["ble", "bluetooth", "nimble", "embedded", "async"]
+
+[features]
+default = [
+    "std",
+    "alloc",
+    "peripheral",
+    "central",
+    "gatt-server",
+    "gatt-client",
+    "sm",
+]
+
+## Conveniences for hosted targets: the thread-park `Parker` (no spinning
+## during HCI command-ack waits) and `std::error::Error` impls. Implies `alloc`.
+std = ["alloc", "critical-section/std"]
+
+## Boxed-closure callback subscription and the runtime GATT service table
+## builder; also routes `nimble_platform_mem_*` to the global allocator.
+alloc = []
+
+## BLE roles (forwarded to `nimble-rs-sys`)
+peripheral = ["nimble-rs-sys/peripheral"]
+central = ["nimble-rs-sys/central"]
+broadcaster = ["nimble-rs-sys/broadcaster"]
+observer = ["nimble-rs-sys/observer"]
+
+## GATT server Rust API (the C-side GATT server is always compiled)
+gatt-server = []
+## GATT client Rust API + C-side client procedures
+gatt-client = ["central", "nimble-rs-sys/gatt-client"]
+
+## L2CAP connection-oriented channels (more channels via nimble-rs-sys/l2cap-coc-<N>)
+l2cap = ["nimble-rs-sys/l2cap-coc-2"]
+
+## Extended (BLE 5) advertising; switches the GAP advertising API (mutually
+## exclusive with the legacy advertising API, mirroring esp-idf-svc)
+ext-adv = ["nimble-rs-sys/ext-adv"]
+
+## Security Manager (pairing/bonding)
+sm = ["nimble-rs-sys/sm"]
+
+## Logging backends for the crate's own diagnostics
+log = ["dep:log"]
+defmt = ["dep:defmt"]
+
+[dependencies]
+nimble-rs-sys = { workspace = true }
+bt-hci = { workspace = true }
+embassy-sync = { workspace = true }
+embassy-futures = { workspace = true }
+embassy-time = { workspace = true }
+critical-section = { workspace = true }
+heapless = { workspace = true }
+embedded-io = { workspace = true }
+embedded-io-async = { workspace = true }
+enumset = { workspace = true }
+log = { workspace = true, optional = true }
+defmt = { workspace = true, optional = true }
