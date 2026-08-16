@@ -17,3 +17,7 @@ heapless = { workspace = true }
 futures-lite = "2"
 log = { version = "0.4", features = ["std"] }
 env_logger = "0.11"
+anyhow = "1"
+enumset = "1"
+async-io = "2"
+libc = "0.2"
