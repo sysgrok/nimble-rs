@@ -128,3 +128,18 @@ pub(crate) async fn run_timers() -> ! {
         npl::timers_fire_due();
     }
 }
+
+/// Synchronously drains and runs every event currently on the default queue.
+/// Test-harness support (`external-ll`).
+#[cfg(feature = "external-ll")]
+pub(crate) fn drain_events() {
+    unsafe {
+        loop {
+            let ev = npl::eventq_try_pop_raw(DFLT_EVQ.0.get());
+            if ev.is_null() {
+                break;
+            }
+            sys::ble_npl_event_run(ev);
+        }
+    }
+}

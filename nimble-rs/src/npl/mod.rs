@@ -245,6 +245,12 @@ unsafe fn eventq_try_pop(q: *mut EventQueue) -> *mut Event {
     })
 }
 
+/// Pops the next event without registering any waker. Test-harness support.
+#[cfg(feature = "external-ll")]
+pub(crate) unsafe fn eventq_try_pop_raw(evq: *mut sys::ble_npl_eventq) -> *mut sys::ble_npl_event {
+    eventq_try_pop(eventq(evq)).cast()
+}
+
 /// Polls the queue for the next event, registering `waker` when empty.
 /// Used by the driver's `run()` future (the Rust replacement of the
 /// `nimble_port_run` loop).

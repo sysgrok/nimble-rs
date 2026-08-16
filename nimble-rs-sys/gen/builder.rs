@@ -85,7 +85,7 @@ impl NimbleBuilder {
     /// `features::VAL_UNIVERSE` for why every knob is passed explicitly) plus
     /// the extra `CONFIG_*` defines the esp-nimble fork requires.
     pub fn defines(&self) -> Vec<(String, String)> {
-        features::active_val_settings()
+        let mut defines: Vec<(String, String)> = features::active_val_settings()
             .into_iter()
             .map(|(name, value)| (format!("MYNEWT_VAL_{name}"), value))
             .chain(
@@ -93,7 +93,17 @@ impl NimbleBuilder {
                     .iter()
                     .map(|(name, value)| (name.to_string(), value.to_string())),
             )
-            .collect()
+            .collect();
+
+        if std::env::var_os("CARGO_FEATURE_UPSTREAM_TEST").is_some() {
+            defines.extend(
+                features::UPSTREAM_TEST_EXTRA_DEFINES
+                    .iter()
+                    .map(|(name, value)| (name.to_string(), value.to_string())),
+            );
+        }
+
+        defines
     }
 
     fn glob_c(dir: &Path, excludes: &[&str]) -> Result<Vec<PathBuf>> {
@@ -184,6 +194,27 @@ impl NimbleBuilder {
         }
 
         build.compile(Self::LIB_NIMBLE);
+
+        // Export the include paths and the exact configuration to dependent
+        // build scripts (DEP_NIMBLE_INCLUDE / DEP_NIMBLE_DEFINES): anything
+        // compiling more C against this build (e.g. the upstream test
+        // harness) must use the same config or the ABI diverges.
+        println!(
+            "cargo::metadata=include={}",
+            self.include_dirs()
+                .iter()
+                .map(|dir| dir.display().to_string())
+                .collect::<Vec<_>>()
+                .join(";")
+        );
+        println!(
+            "cargo::metadata=defines={}",
+            self.defines()
+                .iter()
+                .map(|(name, value)| format!("{name}={value}"))
+                .collect::<Vec<_>>()
+                .join(";")
+        );
 
         // tinycrypt (SM pairing crypto), as its own archive, linked after the
         // host stack which depends on it.

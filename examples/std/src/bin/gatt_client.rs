@@ -206,7 +206,9 @@ async fn amain() -> anyhow::Result<()> {
 
         // 4. Subscribe for indications: write 0x0002 to the CCCD, which
         //    NimBLE places right after the characteristic value attribute
-        driver.write(conn, ind + 1, &[0x02, 0x00]).expect("subscribe");
+        driver
+            .write(conn, ind + 1, &[0x02, 0x00])
+            .expect("subscribe");
 
         // 5. Write to "recv" once a second; indications arrive on the hook
         let mut counter: u32 = 0;

@@ -1,0 +1,31 @@
+# The upstream NimBLE host test suite (esp-nimble/nimble/host/test), compiled
+# against nimble-rs' porting layer. Deliberately OUTSIDE the workspace: its
+# `upstream-test` sys config (phony HCI acks, SELFTEST) must never
+# feature-unify into normal builds. Run via `cargo xtask itest`.
+[package]
+name = "nimble-rs-upstream-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+nimble-rs = { path = "../../nimble-rs", default-features = false, features = [
+    "std",
+    "peripheral",
+    "central",
+    "gatt-server",
+    "gatt-client",
+    "sm",
+    "l2cap",
+    "external-ll",
+    "log",
+] }
+nimble-rs-sys = { path = "../../nimble-rs-sys", features = ["upstream-test"] }
+embassy-time = { version = "0.5", features = ["mock-driver", "generic-queue-16"] }
+env_logger = "0.11"
+log = "0.4"
+
+[build-dependencies]
+cc = "1.1"
+
+[workspace]

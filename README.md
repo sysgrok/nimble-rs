@@ -71,6 +71,12 @@ privileges, used as the CI gates:
 ./target/debug/gattc_smoke            # scan/connect/client + L2CAP echo
 ```
 
+`cargo xtask e2e` runs this repo's own end-to-end suite: the hermetic gates
+always, plus the real `gatt_server <-> gatt_client` and `l2cap` pairs over
+hci0/hci1 when the btvirt setup above is in place (skipped otherwise).
+`cargo xtask itest` runs the **upstream** NimBLE host test suite (36 suites)
+against nimble-rs' porting layer.
+
 ## License
 
 The Rust code in this repository is licensed under either of

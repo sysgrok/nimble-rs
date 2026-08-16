@@ -51,6 +51,10 @@ ext-adv = ["nimble-rs-sys/ext-adv"]
 ## Security Manager (pairing/bonding)
 sm = ["nimble-rs-sys/sm"]
 
+## Leave the `ble_transport_ll_*` symbols undefined so an external (C) test
+## harness can provide its own transport. Test harness use only.
+external-ll = []
+
 ## Logging backends for the crate's own diagnostics
 log = ["dep:log"]
 defmt = ["dep:defmt"]

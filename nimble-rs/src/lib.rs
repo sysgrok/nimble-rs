@@ -48,6 +48,22 @@ use nimble_rs_sys as sys;
 
 pub use hci::{ForTransport, NimbleController};
 
+/// Support hooks for external test harnesses (the upstream NimBLE test suite
+/// runner). Only present with the `external-ll` feature.
+#[cfg(feature = "external-ll")]
+pub mod test_support {
+    /// Fires every callout whose deadline has passed (the job of the driver's
+    /// `run()` future, which a synchronous test harness does not poll).
+    pub fn fire_due_timers() {
+        crate::npl::timers_fire_due();
+    }
+
+    /// Drains and runs every event on the default queue.
+    pub fn drain_events() {
+        crate::port::drain_events();
+    }
+}
+
 extern "C" {
     // Declared in `store/ram/ble_store_ram.h` but not surfaced by bindgen
     fn ble_store_ram_init();

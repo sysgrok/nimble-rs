@@ -134,6 +134,40 @@ pub const FEATURE_VALS: &[(&str, &[(&str, &str)])] = &[
     ),
 ];
 
+/// The upstream `nimble/host/test` suite's configuration (its `syscfg.yml`),
+/// as an overlay. One deviation: `CONFIG_FCB` is not set (the FCB-backed
+/// config persistence is not compiled; the config store runs RAM-backed).
+/// `BLE_HS_DEBUG=1` (needed by the SM suites' `ble_*_dbg_*` key-injection
+/// hooks) works because [`UPSTREAM_TEST_EXTRA_DEFINES`] maps the fork's
+/// FreeRTOS task-handle usage onto the NPL.
+pub const UPSTREAM_TEST_VALS: &[(&str, &str)] = &[
+    ("SELFTEST", "1"),
+    ("BLE_HS_PHONY_HCI_ACKS", "1"),
+    ("BLE_HS_REQUIRE_OS", "0"),
+    ("BLE_MAX_CONNECTIONS", "8"),
+    ("BLE_GATT_MAX_PROCS", "16"),
+    ("BLE_SM", "1"),
+    ("BLE_SM_LEGACY", "1"),
+    ("BLE_SM_SC", "1"),
+    ("MSYS_1_BLOCK_COUNT", "100"),
+    ("BLE_L2CAP_COC_MAX_NUM", "2"),
+    ("BLE_VERSION", "52"),
+    ("BLE_L2CAP_ENHANCED_COC", "1"),
+    ("BLE_GATTC", "1"),
+    ("BLE_HS_DEBUG", "1"),
+];
+
+/// Plain defines accompanying [`UPSTREAM_TEST_VALS`]: the fork's
+/// `BLE_HS_DEBUG` lock-tracking uses FreeRTOS task handles directly; the NPL
+/// task-identity API is a drop-in.
+pub const UPSTREAM_TEST_EXTRA_DEFINES: &[(&str, &str)] = &[
+    ("TaskHandle_t", "void *"),
+    (
+        "xTaskGetCurrentTaskHandle()",
+        "ble_npl_get_current_task_id()",
+    ),
+];
+
 /// Additive numeric feature families; the largest enabled value wins.
 ///
 /// The first element is the `CARGO_FEATURE_` prefix of the family, the second
@@ -182,6 +216,12 @@ pub fn val_settings_for(features: &[&str]) -> BTreeMap<&'static str, String> {
             for (name, value) in *overrides {
                 vals.insert(name, value.to_string());
             }
+        }
+    }
+
+    if features.contains(&"UPSTREAM_TEST") {
+        for (name, value) in UPSTREAM_TEST_VALS {
+            vals.insert(name, value.to_string());
         }
     }
 

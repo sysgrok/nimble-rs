@@ -1,0 +1,158 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace -- -D warnings
+
+  # Build + the hermetic smoke gates (mock controller: no hardware, no
+  # privileges) + the feature matrix
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build workspace
+        run: cargo build --workspace
+      - name: Hermetic smoke gates
+        run: |
+          ./target/debug/smoke
+          ./target/debug/gatts_smoke
+          ./target/debug/gattc_smoke
+      - name: Feature matrix (nimble-rs-sys)
+        run: |
+          cargo build -p nimble-rs-sys --no-default-features --features peripheral
+          cargo build -p nimble-rs-sys --no-default-features --features central,gatt-client
+          cargo build -p nimble-rs-sys --features ext-adv,l2cap-coc-8,max-connections-16,sm-sc-only
+      - name: no-std / no-alloc core check (nimble-rs)
+        run: |
+          cargo check -p nimble-rs --no-default-features --features peripheral,central,sm
+          cargo check -p nimble-rs --no-default-features --features peripheral,central,sm,gatt-server,gatt-client,l2cap
+
+  # 32-bit behavioral canary: NimBLE upstream forces -m32 for its own Linux
+  # sim, citing 4-byte-pointer assumptions; this leg keeps us honest on both
+  # widths (the 64-bit fixes live in gen/glue).
+  i686:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: i686-unknown-linux-gnu
+      - run: sudo apt-get update && sudo apt-get install -y gcc-multilib
+      - name: Build + run the hermetic gates on i686
+        run: |
+          cargo build --target i686-unknown-linux-gnu -p nimble-rs-examples-std
+          ./target/i686-unknown-linux-gnu/debug/smoke
+          ./target/i686-unknown-linux-gnu/debug/gatts_smoke
+          ./target/i686-unknown-linux-gnu/debug/gattc_smoke
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build + run the hermetic gates
+        run: |
+          cargo build --workspace
+          ./target/debug/smoke
+          ./target/debug/gatts_smoke
+          ./target/debug/gattc_smoke
+
+  asan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+      - name: Build + run the hermetic gates under ASAN
+        env:
+          RUSTFLAGS: -Zsanitizer=address
+          CFLAGS: -fsanitize=address
+        run: |
+          cargo build -Zbuild-std --target x86_64-unknown-linux-gnu -p nimble-rs-examples-std
+          ./target/x86_64-unknown-linux-gnu/debug/smoke
+          ./target/x86_64-unknown-linux-gnu/debug/gatts_smoke
+          ./target/x86_64-unknown-linux-gnu/debug/gattc_smoke
+
+  # The real-controller tier over BlueZ btvirt virtual devices. Kernel/module
+  # availability varies across runner images, so failures here do not (yet)
+  # fail the build.
+  e2e-btvirt:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Set up btvirt
+        run: |
+          sudo apt-get update && sudo apt-get install -y bluez bluez-test-tools libcap2-bin
+          sudo modprobe hci_vhci
+          sudo systemctl stop bluetooth || true
+          sudo btvirt -l2 &
+          sleep 2
+      - name: Build and grant CAP_NET_ADMIN
+        run: |
+          cargo build -p nimble-rs-examples-std
+          sudo setcap cap_net_admin+ep target/debug/gatt_server \
+               cap_net_admin+ep target/debug/gatt_client \
+               cap_net_admin+ep target/debug/gatt_server_dynamic \
+               cap_net_admin+ep target/debug/scanner \
+               cap_net_admin+ep target/debug/l2cap
+      - run: cargo xtask e2e
+
+  # The upstream NimBLE host test suite (esp-nimble's nimble/host/test, ~208
+  # cases) running against nimble-rs' porting layer - see tests/upstream.
+  itest-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo xtask itest
+
+  # The published nimble-rs-sys package must stay well under the crates.io
+  # limit despite bundling the esp-nimble submodule (see package.exclude).
+  package-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Package nimble-rs-sys and check the size
+        run: |
+          cargo package -p nimble-rs-sys --no-verify --allow-dirty
+          size=$(stat -c%s target/package/nimble-rs-sys-*.crate)
+          echo "package size: $size bytes"
+          test "$size" -lt 9000000

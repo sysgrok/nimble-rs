@@ -14,6 +14,7 @@
 //! wait) can manually poll it while a C caller is parked - the
 //! "pump-while-pending" mechanism that makes the whole stack thread-free.
 
+#[cfg(not(feature = "external-ll"))]
 use core::ffi::{c_int, c_void};
 use core::future::Future;
 use core::pin::Pin;
@@ -150,15 +151,18 @@ static CMD_QUEUE: Channel<CriticalSectionRawMutex, Packet<CMD_PACKET_MAX>, CMD_Q
 static ACL_QUEUE: Channel<CriticalSectionRawMutex, Packet<ACL_PACKET_MAX>, ACL_QUEUE_DEPTH> =
     Channel::new();
 
+#[cfg(not(feature = "external-ll"))]
 #[no_mangle]
 extern "C" fn ble_transport_ll_init() {}
 
+#[cfg(not(feature = "external-ll"))]
 #[no_mangle]
 extern "C" fn ble_transport_ll_deinit() {
     while CMD_QUEUE.try_receive().is_ok() {}
     while ACL_QUEUE.try_receive().is_ok() {}
 }
 
+#[cfg(not(feature = "external-ll"))]
 #[no_mangle]
 unsafe extern "C" fn ble_transport_to_ll_cmd_impl(buf: *mut c_void) -> c_int {
     // Flat command buffer: [opcode: 2][len: 1][params: len]
@@ -179,6 +183,7 @@ unsafe extern "C" fn ble_transport_to_ll_cmd_impl(buf: *mut c_void) -> c_int {
     0
 }
 
+#[cfg(not(feature = "external-ll"))]
 #[no_mangle]
 unsafe extern "C" fn ble_transport_to_ll_acl_impl(om: *mut sys::os_mbuf) -> c_int {
     let mut packet = Packet::<ACL_PACKET_MAX>::new();
@@ -206,6 +211,7 @@ unsafe extern "C" fn ble_transport_to_ll_acl_impl(om: *mut sys::os_mbuf) -> c_in
     0
 }
 
+#[cfg(not(feature = "external-ll"))]
 #[no_mangle]
 unsafe extern "C" fn ble_transport_to_ll_iso_impl(om: *mut sys::os_mbuf) -> c_int {
     // ISO is compiled out (`MYNEWT_VAL_BLE_ISO=0`)

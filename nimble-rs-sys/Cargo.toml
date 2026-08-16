@@ -93,6 +93,9 @@ msys-count-64 = []
 prebuilt = ["peripheral", "central", "gatt-client", "sm"]
 force-generate-bindings = []
 use-gcc = []
+## Build with the upstream `nimble/host/test` suite's configuration
+## (phony HCI acks etc.). Test harness use only - see `tests/upstream`.
+upstream-test = []
 
 [build-dependencies]
 anyhow = { workspace = true }
