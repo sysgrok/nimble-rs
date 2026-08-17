@@ -15,9 +15,11 @@ use core::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
 use log::{info, warn};
 
+use bt_hci::controller::ExternalController;
 use nimble_rs::gap::{BleDiscParams, GapEvent};
 use nimble_rs::gatt::client::GattcEvent;
-use nimble_rs::{Ble, BleAddr, BleUuid, ForTransport, HostEvent};
+
+use nimble_rs::{Ble, BleAddr, BleUuid, HostEvent};
 
 const PEER_NAME: &str = "nimble-rs";
 
@@ -163,7 +165,8 @@ async fn amain() -> anyhow::Result<()> {
         .transpose()?
         .unwrap_or(0);
 
-    let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
+    let controller =
+        ExternalController::<_, 1>::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
     let driver = Ble::new()?;
     driver.host_subscribe(&on_host_event);

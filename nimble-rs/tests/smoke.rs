@@ -13,7 +13,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use embassy_futures::select::{select, Either};
 
-use nimble_rs::{Ble, ForTransport, HostEvent, Parker, SpinParker};
+use bt_hci::controller::ExternalController;
+
+use nimble_rs::{Ble, HostEvent, Parker, SpinParker};
 
 #[path = "common/mock.rs"]
 mod mock;
@@ -64,7 +66,7 @@ fn cycle(parker: Option<&dyn Parker>) {
     .expect("driver init");
     driver.host_subscribe(&on_host_event);
 
-    let controller = ForTransport::new(MockController::new());
+    let controller = ExternalController::<_, 1>::new(MockController::new());
 
     futures_lite::future::block_on(async {
         match select(driver.run(controller), async {

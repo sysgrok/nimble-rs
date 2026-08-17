@@ -7,8 +7,10 @@
 
 use log::info;
 
+use bt_hci::controller::ExternalController;
 use nimble_rs::gap::{BleDiscParams, GapEvent};
-use nimble_rs::{Ble, ForTransport, HostEvent};
+
+use nimble_rs::{Ble, HostEvent};
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
@@ -54,7 +56,8 @@ async fn amain() -> anyhow::Result<()> {
         .transpose()?
         .unwrap_or(0);
 
-    let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
+    let controller =
+        ExternalController::<_, 1>::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
     let driver = Ble::new()?;
     driver.host_subscribe(&on_host_event);

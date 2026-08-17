@@ -15,10 +15,12 @@ use std::sync::Mutex;
 
 use log::{info, warn};
 
+use bt_hci::controller::ExternalController;
 use nimble_rs::gap::{BleAdvFields, BleAdvParams, GapEvent};
 use nimble_rs::gatt::server::{BleGattRegister, GattsEvent};
 use nimble_rs::gatt_services;
-use nimble_rs::{Ble, BleError, BleUuid, ConnHandle, ForTransport, HostEvent};
+
+use nimble_rs::{Ble, BleError, BleUuid, ConnHandle, HostEvent};
 
 const DEVICE_NAME: &str = "nimble-rs";
 
@@ -152,7 +154,8 @@ async fn amain() -> anyhow::Result<()> {
         .transpose()?
         .unwrap_or(0);
 
-    let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
+    let controller =
+        ExternalController::<_, 1>::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
     // The service table is `'static`, so the driver just takes a reference
     let driver = Ble::new_with_services(&SERVICES)?;

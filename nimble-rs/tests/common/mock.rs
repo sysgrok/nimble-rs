@@ -66,6 +66,14 @@ impl std::fmt::Display for MockError {
 
 impl std::error::Error for MockError {}
 
+// `ExternalController` surfaces packet-parse failures through the transport
+// error type.
+impl From<bt_hci::FromHciBytesError> for MockError {
+    fn from(_: bt_hci::FromHciBytesError) -> Self {
+        Self
+    }
+}
+
 impl embedded_io::Error for MockError {
     fn kind(&self) -> embedded_io::ErrorKind {
         embedded_io::ErrorKind::Other

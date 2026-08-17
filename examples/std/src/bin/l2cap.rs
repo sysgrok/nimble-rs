@@ -16,9 +16,11 @@ use core::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
 use log::{info, warn};
 
+use bt_hci::controller::ExternalController;
 use nimble_rs::gap::{BleAdvFields, BleAdvParams, BleDiscParams, GapEvent};
 use nimble_rs::l2cap::{L2capChan, L2capEvent};
-use nimble_rs::{Ble, BleAddr, ForTransport, HostEvent};
+
+use nimble_rs::{Ble, BleAddr, HostEvent};
 
 const DEVICE_NAME: &str = "nimble-rs-l2cap";
 const PSM: u16 = 0x0080;
@@ -173,7 +175,8 @@ async fn amain() -> anyhow::Result<()> {
     };
     SERVER.store(server, Ordering::Relaxed);
 
-    let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
+    let controller =
+        ExternalController::<_, 1>::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
     let driver = Box::leak(Box::new(Ble::new()?));
     DRIVER.0.set(Some(driver));

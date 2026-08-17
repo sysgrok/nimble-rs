@@ -11,10 +11,12 @@ use core::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
 use embassy_futures::select::{select, Either};
 
+use bt_hci::controller::ExternalController;
 use nimble_rs::gap::{BleDiscParams, GapEvent};
 use nimble_rs::gatt::client::GattcEvent;
 use nimble_rs::l2cap::{L2capChan, L2capEvent, SendOutcome};
-use nimble_rs::{Ble, BleAddr, ForTransport, HostEvent};
+
+use nimble_rs::{Ble, BleAddr, HostEvent};
 
 #[path = "common/mock.rs"]
 mod mock;
@@ -246,7 +248,7 @@ fn gattc_smoke() {
     driver.gattc_subscribe(&on_gattc_event);
     driver.l2cap_subscribe(&on_l2cap_event);
 
-    let controller = ForTransport::new(MockController::new());
+    let controller = ExternalController::<_, 1>::new(MockController::new());
 
     futures_lite::future::block_on(async {
         match select(driver.run(controller), async {

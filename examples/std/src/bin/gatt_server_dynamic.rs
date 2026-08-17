@@ -13,12 +13,14 @@ use log::{info, warn};
 
 use enumset::enum_set;
 
+use bt_hci::controller::ExternalController;
 use nimble_rs::gap::{BleAdvFields, BleAdvParams, GapEvent};
 use nimble_rs::gatt::server::{
     BleGattCharacteristic, BleGattRegister, BleGattService, BleGattServices, GattsEvent,
 };
 use nimble_rs::gatt::BleGattCharFlag;
-use nimble_rs::{Ble, BleError, BleUuid, ConnHandle, ForTransport, HostEvent};
+
+use nimble_rs::{Ble, BleError, BleUuid, ConnHandle, HostEvent};
 
 const DEVICE_NAME: &str = "nimble-rs";
 
@@ -129,7 +131,8 @@ async fn amain() -> anyhow::Result<()> {
         .transpose()?
         .unwrap_or(0);
 
-    let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
+    let controller =
+        ExternalController::<_, 1>::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
     // The runtime-built service table: same shape as `gatt_services!` in
     // `gatt_server.rs`, but constructed at runtime. The definitions are

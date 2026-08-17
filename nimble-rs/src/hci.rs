@@ -20,9 +20,53 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll, Waker};
 
+use bt_hci::cmd::controller_baseband::{Reset, SetEventMask, SetEventMaskPage2};
+use bt_hci::cmd::info::{
+    ReadBdAddr, ReadLocalSupportedCmds, ReadLocalSupportedFeatures, ReadLocalVersionInformation,
+};
+use bt_hci::cmd::le::{
+    LeAddDeviceToResolvingList, LeClearResolvingList, LeRand, LeReadBufferSize,
+    LeReadLocalSupportedFeatures, LeRemoveDeviceFromResolvingList, LeSetAddrResolutionEnable,
+    LeSetAdvEnable, LeSetEventMask, LeSetPrivacyMode, LeSetRandomAddr,
+    LeSetResolvablePrivateAddrTimeout,
+};
+use bt_hci::cmd::{Cmd, SyncCmd};
+use bt_hci::controller::ControllerCmdSync;
 use bt_hci::data::AclPacket;
-use bt_hci::transport::Transport;
-use bt_hci::{ControllerToHostPacket, FromHciBytes, HostToControllerPacket, PacketKind, WriteHci};
+use bt_hci::{ControllerToHostPacket, FromHciBytes, WriteHci};
+
+#[cfg(any(feature = "central", feature = "peripheral"))]
+use bt_hci::cmd::le::{
+    LeAddDeviceToFilterAcceptList, LeClearFilterAcceptList, LeConnUpdate, LeReadChannelMap,
+    LeReadFilterAcceptListSize, LeReadRemoteFeatures, LeReadSuggestedDefaultDataLength,
+    LeRemoteConnectionParameterRequestNegativeReply, LeRemoteConnectionParameterRequestReply,
+    LeRemoveDeviceFromFilterAcceptList, LeSetDataLength, LeSetHostChannelClassification,
+    LeWriteSuggestedDefaultDataLength,
+};
+#[cfg(any(feature = "central", feature = "peripheral"))]
+use bt_hci::cmd::link_control::{Disconnect, ReadRemoteVersionInformation};
+#[cfg(any(feature = "central", feature = "peripheral"))]
+use bt_hci::cmd::status::ReadRssi;
+#[cfg(any(feature = "central", feature = "peripheral"))]
+use bt_hci::cmd::AsyncCmd;
+#[cfg(any(feature = "central", feature = "peripheral"))]
+use bt_hci::controller::ControllerCmdAsync;
+
+#[cfg(feature = "broadcaster")]
+use bt_hci::cmd::le::{
+    LeReadAdvPhysicalChannelTxPower, LeSetAdvData, LeSetAdvParams, LeSetScanResponseData,
+};
+
+#[cfg(feature = "observer")]
+use bt_hci::cmd::le::{LeSetScanEnable, LeSetScanParams};
+
+#[cfg(feature = "central")]
+use bt_hci::cmd::le::{LeCreateConn, LeCreateConnCancel};
+
+#[cfg(any(feature = "sm", feature = "sm-sc-only"))]
+use bt_hci::cmd::le::{
+    LeEnableEncryption, LeLongTermKeyRequestNegativeReply, LeLongTermKeyRequestReply,
+};
 
 use embassy_futures::join::join;
 use embassy_futures::select::{select, Either};
@@ -45,101 +89,448 @@ const ACL_QUEUE_DEPTH: usize = sys::MYNEWT_VAL_BLE_TRANSPORT_ACL_FROM_HS_COUNT a
 
 type Packet<const N: usize> = heapless::Vec<u8, N>;
 
-/// The controller abstraction `nimble-rs` runs on: any async
-/// [`bt_hci::controller::Controller`] extended with raw command submission.
-///
-/// The extension is unavoidable for a C host: NimBLE emits commands as raw
-/// runtime packets, while bt-hci's typed command path (`ControllerCmdSync`)
-/// neither accepts raw packets nor lets the raw Command Complete bytes be
-/// reconstructed from a typed response. Every practical controller speaks raw
-/// HCI at the bottom, so implementing [`Self::write_cmd`] is always possible:
-/// Transport-shaped controllers get it for free via [`ForTransport`]; native
-/// ones (e.g. nrf-sdc) dispatch on the opcode.
-pub trait NimbleController: bt_hci::controller::Controller {
-    /// Sends a raw HCI command packet (opcode + length + parameters, no
-    /// transport indicator byte) to the controller.
-    fn write_cmd(&self, cmd_packet: &[u8]) -> impl Future<Output = Result<(), Self::Error>>;
+//
+// The controller contract: stock bt-hci traits only, aggregated - like
+// trouble-host's `Controller` - into one alias trait with a blanket impl.
+// Nothing bespoke to implement: `bt_hci::controller::ExternalController`
+// (for transports) and native controllers such as nrf-sdc satisfy it out of
+// the box for the commands their configuration needs.
+//
+
+/// Commands every configuration sends (startup, identity, privacy).
+pub trait CoreCmds:
+    bt_hci::controller::Controller
+    + ControllerCmdSync<Reset>
+    + ControllerCmdSync<SetEventMask>
+    + ControllerCmdSync<SetEventMaskPage2>
+    + ControllerCmdSync<LeSetEventMask>
+    + ControllerCmdSync<ReadLocalVersionInformation>
+    + ControllerCmdSync<ReadLocalSupportedCmds>
+    + ControllerCmdSync<ReadLocalSupportedFeatures>
+    + ControllerCmdSync<ReadBdAddr>
+    + ControllerCmdSync<LeReadBufferSize>
+    + ControllerCmdSync<LeReadLocalSupportedFeatures>
+    + ControllerCmdSync<LeRand>
+    + ControllerCmdSync<LeSetRandomAddr>
+    + ControllerCmdSync<LeSetAdvEnable>
+    + ControllerCmdSync<LeSetAddrResolutionEnable>
+    + ControllerCmdSync<LeClearResolvingList>
+    + ControllerCmdSync<LeAddDeviceToResolvingList>
+    + ControllerCmdSync<LeRemoveDeviceFromResolvingList>
+    + ControllerCmdSync<LeSetPrivacyMode>
+    + ControllerCmdSync<LeSetResolvablePrivateAddrTimeout>
+{
 }
 
-/// A raw HCI command packet, made writable through a [`Transport`].
-struct RawCmd<'a>(&'a [u8]);
+impl<
+        C: bt_hci::controller::Controller
+            + ControllerCmdSync<Reset>
+            + ControllerCmdSync<SetEventMask>
+            + ControllerCmdSync<SetEventMaskPage2>
+            + ControllerCmdSync<LeSetEventMask>
+            + ControllerCmdSync<ReadLocalVersionInformation>
+            + ControllerCmdSync<ReadLocalSupportedCmds>
+            + ControllerCmdSync<ReadLocalSupportedFeatures>
+            + ControllerCmdSync<ReadBdAddr>
+            + ControllerCmdSync<LeReadBufferSize>
+            + ControllerCmdSync<LeReadLocalSupportedFeatures>
+            + ControllerCmdSync<LeRand>
+            + ControllerCmdSync<LeSetRandomAddr>
+            + ControllerCmdSync<LeSetAdvEnable>
+            + ControllerCmdSync<LeSetAddrResolutionEnable>
+            + ControllerCmdSync<LeClearResolvingList>
+            + ControllerCmdSync<LeAddDeviceToResolvingList>
+            + ControllerCmdSync<LeRemoveDeviceFromResolvingList>
+            + ControllerCmdSync<LeSetPrivacyMode>
+            + ControllerCmdSync<LeSetResolvablePrivateAddrTimeout>,
+    > CoreCmds for C
+{
+}
 
-impl WriteHci for RawCmd<'_> {
-    #[inline(always)]
-    fn size(&self) -> usize {
-        self.0.len()
-    }
+/// Connection management commands (any connectable/initiating role).
+#[cfg(any(feature = "central", feature = "peripheral"))]
+pub trait ConnCmds:
+    bt_hci::controller::Controller
+    + ControllerCmdSync<Disconnect>
+    + ControllerCmdAsync<LeConnUpdate>
+    + ControllerCmdAsync<LeReadRemoteFeatures>
+    + ControllerCmdAsync<ReadRemoteVersionInformation>
+    + ControllerCmdSync<LeSetDataLength>
+    + ControllerCmdSync<LeReadSuggestedDefaultDataLength>
+    + ControllerCmdSync<LeWriteSuggestedDefaultDataLength>
+    + ControllerCmdSync<LeReadChannelMap>
+    + ControllerCmdSync<LeSetHostChannelClassification>
+    + ControllerCmdAsync<LeRemoteConnectionParameterRequestReply>
+    + ControllerCmdAsync<LeRemoteConnectionParameterRequestNegativeReply>
+    + ControllerCmdSync<ReadRssi>
+    + ControllerCmdSync<LeAddDeviceToFilterAcceptList>
+    + ControllerCmdSync<LeRemoveDeviceFromFilterAcceptList>
+    + ControllerCmdSync<LeClearFilterAcceptList>
+    + ControllerCmdSync<LeReadFilterAcceptListSize>
+{
+}
 
-    fn write_hci<W: embedded_io::Write>(&self, mut writer: W) -> Result<(), W::Error> {
-        writer.write_all(self.0)
-    }
+#[cfg(any(feature = "central", feature = "peripheral"))]
+impl<
+        C: bt_hci::controller::Controller
+            + ControllerCmdSync<Disconnect>
+            + ControllerCmdAsync<LeConnUpdate>
+            + ControllerCmdAsync<LeReadRemoteFeatures>
+            + ControllerCmdAsync<ReadRemoteVersionInformation>
+            + ControllerCmdSync<LeSetDataLength>
+            + ControllerCmdSync<LeReadSuggestedDefaultDataLength>
+            + ControllerCmdSync<LeWriteSuggestedDefaultDataLength>
+            + ControllerCmdSync<LeReadChannelMap>
+            + ControllerCmdSync<LeSetHostChannelClassification>
+            + ControllerCmdAsync<LeRemoteConnectionParameterRequestReply>
+            + ControllerCmdAsync<LeRemoteConnectionParameterRequestNegativeReply>
+            + ControllerCmdSync<ReadRssi>
+            + ControllerCmdSync<LeAddDeviceToFilterAcceptList>
+            + ControllerCmdSync<LeRemoveDeviceFromFilterAcceptList>
+            + ControllerCmdSync<LeClearFilterAcceptList>
+            + ControllerCmdSync<LeReadFilterAcceptListSize>,
+    > ConnCmds for C
+{
+}
 
-    async fn write_hci_async<W: embedded_io_async::Write>(
-        &self,
-        mut writer: W,
-    ) -> Result<(), W::Error> {
-        writer.write_all(self.0).await
+/// Auto-implemented when no connectable/initiating role is enabled.
+#[cfg(not(any(feature = "central", feature = "peripheral")))]
+pub trait ConnCmds: bt_hci::controller::Controller {}
+#[cfg(not(any(feature = "central", feature = "peripheral")))]
+impl<C: bt_hci::controller::Controller> ConnCmds for C {}
+
+/// Advertising commands (`broadcaster`; enable itself is in [`CoreCmds`]).
+#[cfg(feature = "broadcaster")]
+pub trait AdvCmds:
+    bt_hci::controller::Controller
+    + ControllerCmdSync<LeSetAdvParams>
+    + ControllerCmdSync<LeSetAdvData>
+    + ControllerCmdSync<LeSetScanResponseData>
+    + ControllerCmdSync<LeReadAdvPhysicalChannelTxPower>
+{
+}
+
+#[cfg(feature = "broadcaster")]
+impl<
+        C: bt_hci::controller::Controller
+            + ControllerCmdSync<LeSetAdvParams>
+            + ControllerCmdSync<LeSetAdvData>
+            + ControllerCmdSync<LeSetScanResponseData>
+            + ControllerCmdSync<LeReadAdvPhysicalChannelTxPower>,
+    > AdvCmds for C
+{
+}
+
+/// Auto-implemented when `broadcaster` is not enabled.
+#[cfg(not(feature = "broadcaster"))]
+pub trait AdvCmds: bt_hci::controller::Controller {}
+#[cfg(not(feature = "broadcaster"))]
+impl<C: bt_hci::controller::Controller> AdvCmds for C {}
+
+/// Scanning commands (`observer`).
+#[cfg(feature = "observer")]
+pub trait ScanCmds:
+    bt_hci::controller::Controller
+    + ControllerCmdSync<LeSetScanParams>
+    + ControllerCmdSync<LeSetScanEnable>
+{
+}
+
+#[cfg(feature = "observer")]
+impl<
+        C: bt_hci::controller::Controller
+            + ControllerCmdSync<LeSetScanParams>
+            + ControllerCmdSync<LeSetScanEnable>,
+    > ScanCmds for C
+{
+}
+
+/// Auto-implemented when `observer` is not enabled.
+#[cfg(not(feature = "observer"))]
+pub trait ScanCmds: bt_hci::controller::Controller {}
+#[cfg(not(feature = "observer"))]
+impl<C: bt_hci::controller::Controller> ScanCmds for C {}
+
+/// Connection initiation commands (`central`).
+#[cfg(feature = "central")]
+pub trait CentralCmds:
+    bt_hci::controller::Controller
+    + ControllerCmdAsync<LeCreateConn>
+    + ControllerCmdSync<LeCreateConnCancel>
+{
+}
+
+#[cfg(feature = "central")]
+impl<
+        C: bt_hci::controller::Controller
+            + ControllerCmdAsync<LeCreateConn>
+            + ControllerCmdSync<LeCreateConnCancel>,
+    > CentralCmds for C
+{
+}
+
+/// Auto-implemented when `central` is not enabled.
+#[cfg(not(feature = "central"))]
+pub trait CentralCmds: bt_hci::controller::Controller {}
+#[cfg(not(feature = "central"))]
+impl<C: bt_hci::controller::Controller> CentralCmds for C {}
+
+/// Security Manager commands (`sm`/`sm-sc-only`).
+#[cfg(any(feature = "sm", feature = "sm-sc-only"))]
+pub trait SmCmds:
+    bt_hci::controller::Controller
+    + ControllerCmdAsync<LeEnableEncryption>
+    + ControllerCmdSync<LeLongTermKeyRequestReply>
+    + ControllerCmdSync<LeLongTermKeyRequestNegativeReply>
+{
+}
+
+#[cfg(any(feature = "sm", feature = "sm-sc-only"))]
+impl<
+        C: bt_hci::controller::Controller
+            + ControllerCmdAsync<LeEnableEncryption>
+            + ControllerCmdSync<LeLongTermKeyRequestReply>
+            + ControllerCmdSync<LeLongTermKeyRequestNegativeReply>,
+    > SmCmds for C
+{
+}
+
+/// Auto-implemented when no Security Manager feature is enabled.
+#[cfg(not(any(feature = "sm", feature = "sm-sc-only")))]
+pub trait SmCmds: bt_hci::controller::Controller {}
+#[cfg(not(any(feature = "sm", feature = "sm-sc-only")))]
+impl<C: bt_hci::controller::Controller> SmCmds for C {}
+
+/// The controller `nimble-rs` runs on: a stock async
+/// [`bt_hci::controller::Controller`] implementing the standard typed-command
+/// traits for the commands the enabled features make the host emit. Blanket
+/// implemented - there is nothing to implement by hand.
+pub trait Controller:
+    bt_hci::controller::Controller + CoreCmds + ConnCmds + AdvCmds + ScanCmds + CentralCmds + SmCmds
+{
+}
+
+impl<
+        C: bt_hci::controller::Controller
+            + CoreCmds
+            + ConnCmds
+            + AdvCmds
+            + ScanCmds
+            + CentralCmds
+            + SmCmds,
+    > Controller for C
+{
+}
+
+//
+// Raw -> typed command dispatch
+//
+// The C host emits commands as raw packets; each is parsed into its typed
+// bt-hci command (`Params: FromHciBytes` + the generated `From<Params>`),
+// executed through `ControllerCmdSync`/`ControllerCmdAsync`, and the ack the
+// host expects (Command Complete / Command Status) is synthesized back from
+// the typed result (`Return: WriteHci`) and fed into the host's RX path.
+//
+
+/// `Unknown HCI Command` / `Invalid HCI Command Parameters` / `Hardware
+/// Failure` - synthesized ack statuses for commands that never reach the
+/// controller.
+const STATUS_UNKNOWN_CMD: u8 = 0x01;
+const STATUS_INVALID_PARAMS: u8 = 0x12;
+const STATUS_HW_FAILURE: u8 = 0x03;
+
+fn ack_status<E>(result: &Result<(), bt_hci::cmd::Error<E>>) -> u8 {
+    match result {
+        Ok(()) => 0,
+        Err(bt_hci::cmd::Error::Hci(e)) => e.to_status().into_inner(),
+        Err(bt_hci::cmd::Error::Io(_)) => {
+            error!("HCI command I/O failed");
+            STATUS_HW_FAILURE
+        }
     }
 }
 
-impl HostToControllerPacket for RawCmd<'_> {
-    const KIND: PacketKind = PacketKind::Cmd;
+/// Synthesizes a Command Complete event: `[0x0e][plen][num_pkts=1][opcode]
+/// [status][return params]`.
+fn complete_ack<R: WriteHci>(opcode: u16, status: u8, ret: Option<&R>) -> Packet<EVT_PACKET_MAX> {
+    let mut evt = Packet::new();
+    unwrap!(evt.push(0x0e).ok());
+    unwrap!(evt.push(0).ok()); // patched below
+    unwrap!(evt.push(1).ok());
+    unwrap!(evt.extend_from_slice(&opcode.to_le_bytes()).ok());
+    unwrap!(evt.push(status).ok());
+
+    if let Some(ret) = ret {
+        let at = evt.len();
+        unwrap!(evt.resize_default(at + ret.size()).ok());
+        unwrap!(
+            ret.write_hci(&mut evt[at..]).ok(),
+            "return params too large"
+        );
+    }
+
+    evt[1] = (evt.len() - 2) as u8;
+    evt
 }
 
-/// Adapts any [`bt_hci::transport::Transport`] (H4 UART, Linux HCI sockets,
-/// USB, ESP VHCI, ...) into a [`NimbleController`].
-///
-/// Unlike `bt_hci::ExternalController`, no command-slot machinery is involved:
-/// the NimBLE host does its own command flow control and ack matching.
-pub struct ForTransport<T>(T);
-
-impl<T: Transport> ForTransport<T> {
-    /// Wraps the given transport.
-    pub const fn new(transport: T) -> Self {
-        Self(transport)
-    }
-
-    /// Returns the wrapped transport.
-    pub fn release(self) -> T {
-        self.0
-    }
+/// The no-return-params case of [`complete_ack`].
+fn plain_ack(opcode: u16, status: u8) -> Packet<EVT_PACKET_MAX> {
+    complete_ack::<()>(opcode, status, None)
 }
 
-impl<T: Transport> embedded_io::ErrorType for ForTransport<T> {
-    type Error = T::Error;
+/// Synthesizes a Command Status event: `[0x0f][4][status][num_pkts=1][opcode]`.
+#[cfg(any(feature = "central", feature = "peripheral"))]
+fn status_ack(opcode: u16, status: u8) -> Packet<EVT_PACKET_MAX> {
+    let mut evt = Packet::new();
+    unwrap!(evt
+        .extend_from_slice(&[
+            0x0f,
+            4,
+            status,
+            1,
+            opcode.to_le_bytes()[0],
+            opcode.to_le_bytes()[1]
+        ])
+        .ok());
+    evt
 }
 
-impl<T: Transport> bt_hci::controller::Controller for ForTransport<T> {
-    async fn write_acl_data(
-        &self,
-        packet: &bt_hci::data::AclPacket<'_>,
-    ) -> Result<(), Self::Error> {
-        self.0.write(packet).await
-    }
+/// Executes one sync command: raw params -> typed -> `exec` -> synthesized
+/// Command Complete.
+async fn sync_cmd<C, T>(controller: &C, opcode: u16, params: &[u8])
+where
+    C: ControllerCmdSync<T>,
+    T: SyncCmd + From<<T as Cmd>::Params>,
+    for<'de> <T as Cmd>::Params: FromHciBytes<'de>,
+    <T as SyncCmd>::Return: WriteHci,
+{
+    let Ok((params, _)) = <T as Cmd>::Params::from_hci_bytes(params) else {
+        error!("malformed HCI command params, opcode {:04x}", opcode);
+        let evt = plain_ack(opcode, STATUS_INVALID_PARAMS);
+        feed_event(evt[0], &evt[2..], false);
+        return;
+    };
 
-    async fn write_sync_data(
-        &self,
-        packet: &bt_hci::data::SyncPacket<'_>,
-    ) -> Result<(), Self::Error> {
-        self.0.write(packet).await
-    }
+    let evt = match controller.exec(&T::from(params)).await {
+        Ok(ret) => complete_ack(opcode, 0, Some(&ret)),
+        Err(e) => plain_ack(opcode, ack_status::<C::Error>(&Err(e))),
+    };
 
-    async fn write_iso_data(
-        &self,
-        packet: &bt_hci::data::IsoPacket<'_>,
-    ) -> Result<(), Self::Error> {
-        self.0.write(packet).await
-    }
-
-    async fn read<'a>(&self, buf: &'a mut [u8]) -> Result<ControllerToHostPacket<'a>, Self::Error> {
-        self.0.read(buf).await
-    }
+    feed_event(evt[0], &evt[2..], false);
 }
 
-impl<T: Transport> NimbleController for ForTransport<T> {
-    async fn write_cmd(&self, cmd_packet: &[u8]) -> Result<(), Self::Error> {
-        self.0.write(&RawCmd(cmd_packet)).await
+/// Executes one async command: raw params -> typed -> `exec` -> synthesized
+/// Command Status. (Subsequent completion events arrive via the RX pump.)
+#[cfg(any(feature = "central", feature = "peripheral"))]
+async fn async_cmd<C, T>(controller: &C, opcode: u16, params: &[u8])
+where
+    C: ControllerCmdAsync<T>,
+    T: AsyncCmd + From<<T as Cmd>::Params>,
+    for<'de> <T as Cmd>::Params: FromHciBytes<'de>,
+{
+    let Ok((params, _)) = <T as Cmd>::Params::from_hci_bytes(params) else {
+        error!("malformed HCI command params, opcode {:04x}", opcode);
+        let evt = status_ack(opcode, STATUS_INVALID_PARAMS);
+        feed_event(evt[0], &evt[2..], false);
+        return;
+    };
+
+    let result = controller.exec(&T::from(params)).await;
+    let evt = status_ack(opcode, ack_status(&result));
+    feed_event(evt[0], &evt[2..], false);
+}
+
+/// Dispatches one raw command packet from the C host.
+async fn send_cmd<C: Controller>(controller: &C, raw: &[u8]) {
+    let opcode = u16::from_le_bytes([raw[0], raw[1]]);
+    let params = raw.get(3..).unwrap_or(&[]);
+
+    macro_rules! sync {
+        ($t:ty) => {
+            if opcode == <$t as Cmd>::OPCODE.to_raw() {
+                return sync_cmd::<C, $t>(controller, opcode, params).await;
+            }
+        };
     }
+    #[cfg(any(feature = "central", feature = "peripheral"))]
+    macro_rules! nb {
+        ($t:ty) => {
+            if opcode == <$t as Cmd>::OPCODE.to_raw() {
+                return async_cmd::<C, $t>(controller, opcode, params).await;
+            }
+        };
+    }
+
+    sync!(Reset);
+    sync!(SetEventMask);
+    sync!(SetEventMaskPage2);
+    sync!(LeSetEventMask);
+    sync!(ReadLocalVersionInformation);
+    sync!(ReadLocalSupportedCmds);
+    sync!(ReadLocalSupportedFeatures);
+    sync!(ReadBdAddr);
+    sync!(LeReadBufferSize);
+    sync!(LeReadLocalSupportedFeatures);
+    sync!(LeRand);
+    sync!(LeSetRandomAddr);
+    sync!(LeSetAdvEnable);
+    sync!(LeSetAddrResolutionEnable);
+    sync!(LeClearResolvingList);
+    sync!(LeAddDeviceToResolvingList);
+    sync!(LeRemoveDeviceFromResolvingList);
+    sync!(LeSetPrivacyMode);
+    sync!(LeSetResolvablePrivateAddrTimeout);
+
+    #[cfg(any(feature = "central", feature = "peripheral"))]
+    {
+        sync!(Disconnect);
+        nb!(LeConnUpdate);
+        nb!(LeReadRemoteFeatures);
+        nb!(ReadRemoteVersionInformation);
+        sync!(LeSetDataLength);
+        sync!(LeReadSuggestedDefaultDataLength);
+        sync!(LeWriteSuggestedDefaultDataLength);
+        sync!(LeReadChannelMap);
+        sync!(LeSetHostChannelClassification);
+        nb!(LeRemoteConnectionParameterRequestReply);
+        nb!(LeRemoteConnectionParameterRequestNegativeReply);
+        sync!(ReadRssi);
+        sync!(LeAddDeviceToFilterAcceptList);
+        sync!(LeRemoveDeviceFromFilterAcceptList);
+        sync!(LeClearFilterAcceptList);
+        sync!(LeReadFilterAcceptListSize);
+    }
+
+    #[cfg(feature = "broadcaster")]
+    {
+        sync!(LeSetAdvParams);
+        sync!(LeSetAdvData);
+        sync!(LeSetScanResponseData);
+        sync!(LeReadAdvPhysicalChannelTxPower);
+    }
+
+    #[cfg(feature = "observer")]
+    {
+        sync!(LeSetScanParams);
+        sync!(LeSetScanEnable);
+    }
+
+    #[cfg(feature = "central")]
+    {
+        nb!(LeCreateConn);
+        sync!(LeCreateConnCancel);
+    }
+
+    #[cfg(any(feature = "sm", feature = "sm-sc-only"))]
+    {
+        nb!(LeEnableEncryption);
+        sync!(LeLongTermKeyRequestReply);
+        sync!(LeLongTermKeyRequestNegativeReply);
+    }
+
+    warn!("unmapped HCI command, opcode {:04x}", opcode);
+    let evt = plain_ack(opcode, STATUS_UNKNOWN_CMD);
+    feed_event(evt[0], &evt[2..], false);
 }
 
 //
@@ -223,10 +614,34 @@ unsafe extern "C" fn ble_transport_to_ll_iso_impl(om: *mut sys::os_mbuf) -> c_in
 // Controller -> host
 //
 
+/// Feeds one raw HCI event (`[code][len][params]`) into the host - used for
+/// controller-originated events and the synthesized command acks alike.
+fn feed_event(code: u8, params: &[u8], discardable: bool) {
+    unsafe {
+        let buf: *mut u8 = sys::ble_transport_alloc_evt(discardable as _).cast();
+        if buf.is_null() {
+            if discardable {
+                trace!("dropping discardable HCI event, pool empty");
+            } else {
+                // Must not drop: a lost non-discardable event (e.g. a
+                // command ack) wedges the host. The pools are sized so
+                // that this cannot happen when the host keeps up.
+                error!("non-discardable HCI event dropped, pool empty");
+            }
+            return;
+        }
+
+        buf.write(code);
+        buf.add(1).write(params.len() as u8);
+        core::ptr::copy_nonoverlapping(params.as_ptr(), buf.add(2), params.len());
+
+        sys::ble_transport_to_hs_evt_impl(buf.cast());
+    }
+}
+
 fn rx_dispatch(packet: &ControllerToHostPacket<'_>) {
     match packet {
         ControllerToHostPacket::Event(event) => {
-            // Reconstruct the raw HCI event: [code: 1][len: 1][params]
             let code = event.kind.0;
             let params = event.data;
 
@@ -239,26 +654,7 @@ fn rx_dispatch(packet: &ControllerToHostPacket<'_>) {
             let discardable = code == LE_META
                 && matches!(params.first(), Some(&LE_ADV_RPT) | Some(&LE_EXT_ADV_RPT));
 
-            unsafe {
-                let buf: *mut u8 = sys::ble_transport_alloc_evt(discardable as _).cast();
-                if buf.is_null() {
-                    if discardable {
-                        trace!("dropping discardable HCI event, pool empty");
-                    } else {
-                        // Must not drop: a lost non-discardable event (e.g. a
-                        // command ack) wedges the host. The pools are sized so
-                        // that this cannot happen when the host keeps up.
-                        error!("non-discardable HCI event dropped, pool empty");
-                    }
-                    return;
-                }
-
-                buf.write(code);
-                buf.add(1).write(params.len() as u8);
-                core::ptr::copy_nonoverlapping(params.as_ptr(), buf.add(2), params.len());
-
-                sys::ble_transport_to_hs_evt_impl(buf.cast());
-            }
+            feed_event(code, params, discardable);
         }
         ControllerToHostPacket::Acl(acl) => unsafe {
             let om = sys::ble_transport_alloc_acl_from_ll();
@@ -290,7 +686,7 @@ fn rx_dispatch(packet: &ControllerToHostPacket<'_>) {
 /// packets into the host. Runs forever; owned (and primarily polled) by the
 /// driver's `run()` future, and additionally polled from `ble_npl_sem_pend`
 /// via [`pump_manual`].
-pub(crate) async fn pump<C: NimbleController>(controller: &C) -> core::convert::Infallible {
+pub(crate) async fn pump<C: Controller>(controller: &C) -> core::convert::Infallible {
     join(
         async {
             // TX: commands take priority over data
@@ -298,7 +694,8 @@ pub(crate) async fn pump<C: NimbleController>(controller: &C) -> core::convert::
                 let result = match select(CMD_QUEUE.receive(), ACL_QUEUE.receive()).await {
                     Either::First(cmd) => {
                         trace!("HCI cmd -> controller: {}", Bytes(&cmd));
-                        controller.write_cmd(&cmd).await
+                        send_cmd(controller, &cmd).await;
+                        Ok(())
                     }
                     Either::Second(acl) => {
                         trace!("HCI ACL -> controller: {}", Bytes(&acl));

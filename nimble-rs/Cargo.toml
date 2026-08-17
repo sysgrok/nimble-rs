@@ -104,6 +104,7 @@ defmt = { workspace = true, optional = true }
 # gets a fresh process for the singleton host.
 [dev-dependencies]
 nimble-rs-sys = { workspace = true }
+bt-hci = { workspace = true }
 enumset = { workspace = true }
 embassy-futures = { workspace = true }
 embassy-sync = { workspace = true }

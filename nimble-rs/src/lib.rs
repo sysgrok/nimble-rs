@@ -26,7 +26,7 @@ use embassy_futures::select::select3;
 
 use nimble_rs_sys as sys;
 
-pub use hci::{ForTransport, NimbleController};
+pub use hci::{AdvCmds, CentralCmds, ConnCmds, Controller, CoreCmds, ScanCmds, SmCmds};
 #[cfg(feature = "std")]
 pub use npl::parker::StdParker;
 pub use npl::parker::{Parker, SpinParker};
@@ -520,7 +520,7 @@ impl<'d, S> Ble<'d, S> {
     /// rely on `run` being responsive. Calls that send HCI commands stall the
     /// executor for the command-ack round-trip (µs-ms, bounded by the HCI
     /// command timeout).
-    pub async fn run<C: NimbleController>(&self, controller: C) -> Result<Infallible, BleError> {
+    pub async fn run<C: Controller>(&self, controller: C) -> Result<Infallible, BleError> {
         let mut pump = pin!(hci::pump(&controller));
 
         // SAFETY: `pump` is pinned in this frame and `guard` (dropped before
