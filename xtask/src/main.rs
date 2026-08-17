@@ -33,7 +33,10 @@ fn main() -> Result<()> {
 
 fn root() -> PathBuf {
     // xtask lives in <root>/xtask
-    Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf()
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf()
 }
 
 fn bin(name: &str) -> PathBuf {
@@ -103,16 +106,17 @@ fn btvirt_ready(dev: u16) -> bool {
     }
 
     // `scanner` binds the device and errors out immediately when it cannot
-    match run_captured(
-        &bin("scanner"),
-        &[&dev.to_string()],
-        Duration::from_secs(3),
-    ) {
+    match run_captured(&bin("scanner"), &[&dev.to_string()], Duration::from_secs(3)) {
         // A clean early *exit* means a bind error was printed; a timeout kill
         // means it got as far as scanning - i.e. the bind worked
         Ok((timed_out, output)) => {
-            if !timed_out && (output.contains("Operation not permitted") || output.contains("os error")) {
-                println!("   (cannot bind hci{dev}: {})", output.lines().last().unwrap_or(""));
+            if !timed_out
+                && (output.contains("Operation not permitted") || output.contains("os error"))
+            {
+                println!(
+                    "   (cannot bind hci{dev}: {})",
+                    output.lines().last().unwrap_or("")
+                );
                 false
             } else {
                 true
@@ -225,4 +229,3 @@ fn e2e() -> Result<()> {
     }
     Ok(())
 }
-

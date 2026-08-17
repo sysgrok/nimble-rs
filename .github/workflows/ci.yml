@@ -24,7 +24,24 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --exclude nimble-rs-upstream-tests -- -D warnings
+      # The crates outside the workspace (tooling; the embedded examples,
+      # each its own workspace). rustfmt needs no dependency resolution, so
+      # this is cheap even for the cross-compiled ones.
+      - name: rustfmt (excluded crates)
+        run: |
+          cargo fmt --check --manifest-path xtask/Cargo.toml
+          cargo fmt --check --manifest-path examples/nrf/Cargo.toml
+          cargo fmt --check --manifest-path examples/rp/Cargo.toml
+          cargo fmt --check --manifest-path examples/esp/Cargo.toml
+      # --all-targets also lints the integration tests and example binaries
+      - name: clippy (workspace)
+        run: cargo clippy --workspace --exclude nimble-rs-upstream-tests --all-targets --features nimble-rs/std,nimble-rs/l2cap -- -D warnings
+      # Separate invocation: the harness's test-only features must never
+      # feature-unify with the other members (see the root manifest)
+      - name: clippy (upstream test harness)
+        run: cargo clippy -p nimble-rs-upstream-tests -- -D warnings
+      - name: clippy (xtask)
+        run: cargo clippy --manifest-path xtask/Cargo.toml -- -D warnings
 
   # The main functional gate on Linux: build everything, run the hermetic
   # integration tests (nimble-rs/tests: full host over an in-process mock
@@ -114,13 +131,19 @@ jobs:
         with:
           targets: thumbv7em-none-eabi, thumbv6m-none-eabi, riscv32imac-unknown-none-elf
       - name: nrf52840 (nrf-sdc)
-        run: cargo build --release
+        run: |
+          cargo clippy --release -- -D warnings
+          cargo build --release
         working-directory: examples/nrf
       - name: Pico W (cyw43)
-        run: cargo build --release
+        run: |
+          cargo clippy --release -- -D warnings
+          cargo build --release
         working-directory: examples/rp
       - name: ESP32-C6 (esp-radio)
-        run: cargo build --release
+        run: |
+          cargo clippy --release -- -D warnings
+          cargo build --release
         working-directory: examples/esp
 
   macos:
