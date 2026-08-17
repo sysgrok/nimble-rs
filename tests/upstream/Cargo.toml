@@ -17,7 +17,7 @@ publish = false
 
 [dependencies]
 # default features (std/alloc/roles/gatt/sm) plus the test-only extras
-nimble-rs = { workspace = true, features = ["l2cap", "external-ll", "log"] }
+nimble-rs = { workspace = true, features = ["std", "l2cap", "external-ll", "log"] }
 nimble-rs-sys = { workspace = true, features = ["upstream-test"] }
 embassy-time = { workspace = true, features = ["mock-driver", "generic-queue-16"] }
 env_logger = { workspace = true }

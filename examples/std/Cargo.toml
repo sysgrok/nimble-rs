@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-nimble-rs = { workspace = true, features = ["log", "l2cap"] }
+nimble-rs = { workspace = true, features = ["std", "log", "l2cap"] }
 bt-hci = { workspace = true }
 embassy-sync = { workspace = true }
 embassy-futures = { workspace = true }

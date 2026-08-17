@@ -35,7 +35,7 @@ jobs:
       - name: Build workspace
         run: cargo build --workspace --exclude nimble-rs-upstream-tests
       - name: Hermetic integration tests
-        run: cargo test -p nimble-rs --features l2cap
+        run: cargo test -p nimble-rs --features std,l2cap
       - name: Feature matrix (nimble-rs-sys)
         run: |
           cargo build -p nimble-rs-sys --no-default-features --features peripheral
@@ -61,7 +61,7 @@ jobs:
           targets: i686-unknown-linux-gnu
       - run: sudo apt-get update && sudo apt-get install -y gcc-multilib
       - name: Run the hermetic integration tests on i686
-        run: cargo test --target i686-unknown-linux-gnu -p nimble-rs --features l2cap
+        run: cargo test --target i686-unknown-linux-gnu -p nimble-rs --features std,l2cap
 
   macos:
     runs-on: macos-latest
@@ -73,7 +73,7 @@ jobs:
       - name: Build + run the hermetic integration tests
         run: |
           cargo build --workspace --exclude nimble-rs-upstream-tests
-          cargo test -p nimble-rs --features l2cap
+          cargo test -p nimble-rs --features std,l2cap
 
   asan:
     runs-on: ubuntu-latest
@@ -88,7 +88,7 @@ jobs:
         env:
           RUSTFLAGS: -Zsanitizer=address
           CFLAGS: -fsanitize=address
-        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -p nimble-rs --features l2cap
+        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -p nimble-rs --features std,l2cap
 
   # The real-controller tier over BlueZ btvirt virtual devices. Kernel/module
   # availability varies across runner images, so failures here do not (yet)

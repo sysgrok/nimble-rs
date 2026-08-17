@@ -1,16 +1,18 @@
 //! The `nimble_platform_mem_*` heap hooks the esp-nimble fork expects.
 //!
 //! With `MYNEWT_VAL_BLE_STATIC_TO_DYNAMIC=0` (this crate's fixed
-//! configuration) almost all of the C host is statically allocated; the one
-//! remaining consumer is GATT service *registration* (`ble_gatts_add_svcs` /
-//! `ble_gatts_start` copy and own the service definitions on the heap).
+//! configuration) most of the C host is statically allocated, but the
+//! esp-nimble fork still heap-allocates a bounded, config-sized set at init:
+//! the msys mbuf pools (`os_msys_buf_alloc`), the transport context and
+//! pools (`ble_transport_ensure_ctx`/`ble_buf_alloc`), and the GATT service
+//! registry (`ble_gatts_add_svcs`/`ble_gatts_start`).
 //!
 //! - With the `alloc` feature: backed by the global allocator, with the
 //!   allocation size stashed in a small header (C's `free`/`realloc` don't
 //!   pass the layout back).
-//! - Without `alloc`: panicking stubs - GATT service registration is then
-//!   unavailable until a static-arena backend is provided (future feature);
-//!   everything else works.
+//! - Without `alloc`: panicking stubs - the host cannot boot; a static-arena
+//!   backend (future feature) would lift this, as every init-time allocation
+//!   above is deterministic and `MYNEWT_VAL`-sized.
 
 use core::ffi::c_void;
 

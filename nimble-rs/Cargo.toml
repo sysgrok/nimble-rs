@@ -12,7 +12,13 @@ categories = ["embedded", "api-bindings", "hardware-support"]
 keywords = ["ble", "bluetooth", "nimble", "embedded", "async"]
 
 [features]
-default = ["std", "alloc", "peripheral", "central", "sm"]
+# `no_std` by default (the primary audience is baremetal); `alloc` stays a
+# default because the esp-nimble fork heap-allocates its mbuf/transport
+# pools and GATT registry even in the `BLE_STATIC_TO_DYNAMIC=0` config -
+# without a `nimble_platform_mem_*` backend the host cannot boot. (A static
+# arena backend would lift that; until then, no-alloc builds are
+# `--no-default-features`.)
+default = ["alloc", "peripheral", "central", "sm"]
 
 ## Conveniences for hosted targets: the thread-park `Parker` (no spinning
 ## during HCI command-ack waits) and `std::error::Error` impls. Implies `alloc`.
@@ -101,6 +107,16 @@ futures-lite = "2"
 log = { version = "0.4", features = ["std"] }
 env_logger = "0.11"
 
+# The integration tests need `std` explicitly now that it is not a default
+# (among else for the `critical-section/std` implementation).
+[[test]]
+name = "smoke"
+required-features = ["std"]
+
+[[test]]
+name = "gatts_smoke"
+required-features = ["std"]
+
 [[test]]
 name = "gattc_smoke"
-required-features = ["l2cap"]
+required-features = ["std", "l2cap"]
