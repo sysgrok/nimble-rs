@@ -1,7 +1,8 @@
-//! The shared GATT client example on an nRF52840 - see
+//! The shared GATT client example on the nRF - see
 //! `nimble_rs_examples_app::gatt_client`.
 //!
-//! Run with `cargo run --release --bin gatt_client`.
+//! Run with `cargo run --release --bin gatt_client` on the default nRF52840;
+//! see `nimble_rs_examples_nrf` for the other chips.
 
 #![no_std]
 #![no_main]
