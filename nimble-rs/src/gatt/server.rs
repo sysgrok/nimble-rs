@@ -243,34 +243,29 @@ where
 /// and writes are serviced by the single
 /// [`gatts_subscribe`](BleDriver::gatts_subscribe) hook (dispatched by the
 /// value handle reported via [`BleGattRegister`]).
-#[cfg(feature = "alloc")]
+#[derive(Clone, Copy)]
 pub struct BleGattCharacteristic {
     uuid: BleUuid,
     flags: EnumSet<BleGattCharFlag>,
 }
 
-#[cfg(feature = "alloc")]
 impl BleGattCharacteristic {
     pub fn new(uuid: BleUuid, flags: EnumSet<BleGattCharFlag>) -> Self {
         Self { uuid, flags }
     }
 }
 
-/// A GATT service definition.
-#[cfg(feature = "alloc")]
-pub struct BleGattService {
+/// A GATT service definition, borrowing its characteristics from the caller
+/// (an array, a `heapless::Vec`, ... - the borrow only needs to outlive
+/// [`BleGattServices::new`], which copies everything it keeps).
+pub struct BleGattService<'a> {
     primary: bool,
     uuid: BleUuid,
-    characteristics: alloc::vec::Vec<BleGattCharacteristic>,
+    characteristics: &'a [BleGattCharacteristic],
 }
 
-#[cfg(feature = "alloc")]
-impl BleGattService {
-    pub fn new(
-        primary: bool,
-        uuid: BleUuid,
-        characteristics: alloc::vec::Vec<BleGattCharacteristic>,
-    ) -> Self {
+impl<'a> BleGattService<'a> {
+    pub fn new(primary: bool, uuid: BleUuid, characteristics: &'a [BleGattCharacteristic]) -> Self {
         Self {
             primary,
             uuid,
@@ -279,35 +274,62 @@ impl BleGattService {
     }
 }
 
-/// A GATT service table built **at runtime** (heap-allocated), as the raw
-/// NimBLE `ble_gatt_svc_def` tree, ready to hand to
-/// [`BleDriver::new_with_services`]. For a **compile-time** table (no heap),
-/// see the [`gatt_services!`](crate::gatt_services) macro.
-#[cfg(feature = "alloc")]
+/// A GATT service table built **at runtime**, as the raw NimBLE
+/// `ble_gatt_svc_def` tree, ready to hand to
+/// [`BleDriver::new_with_services`]. For a **compile-time** table, see the
+/// [`gatt_services!`](crate::gatt_services) macro.
+///
+/// The table lives in exact-size allocations on the platform C heap (the
+/// same `nimble_platform_mem_*` backend the host itself uses - no Rust
+/// allocator involved): one flat array of characteristic copies (the UUID
+/// storage), one flat array of `ble_gatt_chr_def`s with a terminator per
+/// service, the service UUIDs, and the `ble_gatt_svc_def` array. The def
+/// arrays hold raw pointers into the sibling allocations; nothing moves, so
+/// the pointer graph stays valid for as long as this struct lives.
 pub struct BleGattServices {
-    // The C def arrays hold raw pointers into `_services` (UUIDs) and into
-    // `_chr_defs`. Those targets are heap-allocated, so they stay put when
-    // this struct's handle moves - which is what keeps the pointers valid.
-    _services: alloc::vec::Vec<BleGattService>,
-    _chr_defs: alloc::vec::Vec<alloc::boxed::Box<[sys::ble_gatt_chr_def]>>,
-    svc_defs: alloc::boxed::Box<[sys::ble_gatt_svc_def]>,
+    _chars: crate::mem::CSlice<BleGattCharacteristic>,
+    _svc_uuids: crate::mem::CSlice<BleUuid>,
+    _chr_defs: crate::mem::CSlice<sys::ble_gatt_chr_def>,
+    svc_defs: crate::mem::CSlice<sys::ble_gatt_svc_def>,
 }
 
-#[cfg(feature = "alloc")]
 impl BleGattServices {
-    pub fn new(services: alloc::vec::Vec<BleGattService>) -> Self {
-        use alloc::vec::Vec;
+    /// Builds the table, copying the borrowed definitions into owned C-heap
+    /// storage. Fails with `BLE_HS_ENOMEM` if the C heap is exhausted.
+    pub fn new(services: &[BleGattService<'_>]) -> Result<Self, crate::BleError> {
+        use crate::mem::CSlice;
 
-        let mut chr_storage = Vec::with_capacity(services.len());
-        let mut svc_defs: Vec<sys::ble_gatt_svc_def> = Vec::with_capacity(services.len() + 1);
+        let total_chars = services.iter().map(|s| s.characteristics.len()).sum();
 
-        for service in &services {
-            let mut chr_defs: Vec<sys::ble_gatt_chr_def> =
-                Vec::with_capacity(service.characteristics.len() + 1);
+        let mut chars = CSlice::<BleGattCharacteristic>::new_zeroed(total_chars)?;
+        let mut svc_uuids = CSlice::<BleUuid>::new_zeroed(services.len())?;
+        // One terminator (zeroed entry) after each service's characteristics
+        let mut chr_defs =
+            CSlice::<sys::ble_gatt_chr_def>::new_zeroed(total_chars + services.len())?;
+        let mut svc_defs = CSlice::<sys::ble_gatt_svc_def>::new_zeroed(services.len() + 1)?;
 
-            for chr in &service.characteristics {
-                chr_defs.push(sys::ble_gatt_chr_def {
-                    uuid: chr.uuid.as_ptr(),
+        let mut char_at = 0;
+        let mut def_at = 0;
+
+        for (svc_at, service) in services.iter().enumerate() {
+            svc_uuids[svc_at] = service.uuid;
+
+            svc_defs[svc_at] = sys::ble_gatt_svc_def {
+                type_: if service.primary {
+                    sys::BLE_GATT_SVC_TYPE_PRIMARY as u8
+                } else {
+                    sys::BLE_GATT_SVC_TYPE_SECONDARY as u8
+                },
+                uuid: svc_uuids[svc_at].as_ptr(),
+                includes: core::ptr::null_mut(),
+                characteristics: unsafe { chr_defs.as_ptr().add(def_at) },
+            };
+
+            for chr in service.characteristics {
+                chars[char_at] = *chr;
+
+                chr_defs[def_at] = sys::ble_gatt_chr_def {
+                    uuid: chars[char_at].uuid.as_ptr(),
                     // The one trampoline for every characteristic;
                     // `attr_handle` disambiguates.
                     access_cb: Some(crate::gatts_access_cb),
@@ -316,36 +338,26 @@ impl BleGattServices {
                     // Handles are captured from the registration event
                     val_handle: core::ptr::null_mut(),
                     ..Default::default()
-                });
+                };
+
+                char_at += 1;
+                def_at += 1;
             }
-            chr_defs.push(sys::ble_gatt_chr_def::default());
 
-            let chr_defs = chr_defs.into_boxed_slice();
-            let chr_ptr = chr_defs.as_ptr();
-            chr_storage.push(chr_defs);
-
-            svc_defs.push(sys::ble_gatt_svc_def {
-                type_: if service.primary {
-                    sys::BLE_GATT_SVC_TYPE_PRIMARY as u8
-                } else {
-                    sys::BLE_GATT_SVC_TYPE_SECONDARY as u8
-                },
-                uuid: service.uuid.as_ptr(),
-                includes: core::ptr::null_mut(),
-                characteristics: chr_ptr,
-            });
+            // The per-service terminator: already zeroed by the allocation
+            def_at += 1;
         }
-        svc_defs.push(sys::ble_gatt_svc_def::default());
+        // ... as is the final `svc_defs` terminator entry
 
-        Self {
-            _services: services,
-            _chr_defs: chr_storage,
-            svc_defs: svc_defs.into_boxed_slice(),
-        }
+        Ok(Self {
+            _chars: chars,
+            _svc_uuids: svc_uuids,
+            _chr_defs: chr_defs,
+            svc_defs,
+        })
     }
 }
 
-#[cfg(feature = "alloc")]
 impl AsRef<[sys::ble_gatt_svc_def]> for BleGattServices {
     fn as_ref(&self) -> &[sys::ble_gatt_svc_def] {
         &self.svc_defs

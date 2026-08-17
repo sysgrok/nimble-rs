@@ -132,19 +132,18 @@ async fn amain() -> anyhow::Result<()> {
     let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
     // The runtime-built service table: same shape as `gatt_services!` in
-    // `gatt_server.rs`, but constructed on the heap. The driver owns it (and
-    // the raw pointer graph inside stays put because the targets are boxed).
-    let services = BleGattServices::new(vec![BleGattService::new(
-        true,
-        SERVICE_UUID,
-        vec![
-            BleGattCharacteristic::new(RECV_CHARACTERISTIC_UUID, enum_set!(BleGattCharFlag::Write)),
-            BleGattCharacteristic::new(
-                IND_CHARACTERISTIC_UUID,
-                enum_set!(BleGattCharFlag::Indicate),
-            ),
-        ],
-    )]);
+    // `gatt_server.rs`, but constructed at runtime. The definitions are
+    // borrowed only for the `new` call, which copies them into exact-size
+    // C-heap allocations; the driver then owns the result.
+    let characteristics = [
+        BleGattCharacteristic::new(RECV_CHARACTERISTIC_UUID, enum_set!(BleGattCharFlag::Write)),
+        BleGattCharacteristic::new(
+            IND_CHARACTERISTIC_UUID,
+            enum_set!(BleGattCharFlag::Indicate),
+        ),
+    ];
+    let services =
+        BleGattServices::new(&[BleGattService::new(true, SERVICE_UUID, &characteristics)])?;
 
     let driver = BleDriver::new_with_services(services)?;
     driver.host_subscribe(&on_host_event);

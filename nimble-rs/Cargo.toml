@@ -12,21 +12,26 @@ categories = ["embedded", "api-bindings", "hardware-support"]
 keywords = ["ble", "bluetooth", "nimble", "embedded", "async"]
 
 [features]
-# `no_std` by default (the primary audience is baremetal); `alloc` stays a
-# default because the esp-nimble fork heap-allocates its mbuf/transport
-# pools and GATT registry even in the `BLE_STATIC_TO_DYNAMIC=0` config -
-# without a `nimble_platform_mem_*` backend the host cannot boot. (A static
-# arena backend would lift that; until then, no-alloc builds are
-# `--no-default-features`.)
-default = ["alloc", "peripheral", "central", "sm"]
+# `no_std` by default (the primary audience is baremetal); `use-c-heap`
+# stays a default because the esp-nimble fork heap-allocates its
+# mbuf/transport pools and GATT registry even in the
+# `BLE_STATIC_TO_DYNAMIC=0` config - without a `nimble_platform_mem_*`
+# backend the host cannot boot. (A static arena backend would lift that;
+# until then, no-heap builds are `--no-default-features`.)
+default = ["use-c-heap", "peripheral", "central", "sm"]
 
 ## Conveniences for hosted targets: the thread-park `Parker` (no spinning
-## during HCI command-ack waits) and `std::error::Error` impls. Implies `alloc`.
-std = ["alloc", "critical-section/std"]
+## during HCI command-ack waits) and `std::error::Error` impls.
+std = ["use-c-heap", "critical-section/std"]
 
-## Boxed-closure callback subscription and the runtime GATT service table
-## builder; also routes `nimble_platform_mem_*` to the global allocator.
-alloc = []
+## Backs the C host's `nimble_platform_mem_*` hooks by the platform C heap
+## (`libc` on hosted targets; `esp-alloc`/`tinyrlibc` etc. on baremetal).
+## Some backend is needed to boot (the esp-nimble fork makes bounded
+## init-time allocations, and the runtime GATT service table builder
+## allocates through the same hooks): without this feature the symbols are
+## left undefined for the application to provide (see `nimble_rs::mem`).
+## No Rust allocator is used anywhere.
+use-c-heap = []
 
 ## BLE roles (forwarded to `nimble-rs-sys`). The GATT roles ride on the GAP
 ## roles: `peripheral` brings the GATT *server* (Rust API + C), `central`
@@ -98,6 +103,8 @@ defmt = { workspace = true, optional = true }
 # in-process mock controller - each file is its own binary, so each scenario
 # gets a fresh process for the singleton host.
 [dev-dependencies]
+nimble-rs-sys = { workspace = true }
+enumset = { workspace = true }
 embassy-futures = { workspace = true }
 embassy-sync = { workspace = true }
 embassy-time = { workspace = true, features = ["std", "generic-queue-16"] }
@@ -115,6 +122,10 @@ required-features = ["std"]
 
 [[test]]
 name = "gatts_smoke"
+required-features = ["std"]
+
+[[test]]
+name = "gatt_table"
 required-features = ["std"]
 
 [[test]]

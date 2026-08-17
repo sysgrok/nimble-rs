@@ -31,9 +31,6 @@ pub use hci::{ForTransport, NimbleController};
 #[cfg(feature = "std")]
 extern crate std;
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 // `fmt` must come first for its macros to be visible
 #[macro_use]
 mod fmt;

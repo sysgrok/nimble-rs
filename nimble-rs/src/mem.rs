@@ -7,114 +7,112 @@
 //! pools (`ble_transport_ensure_ctx`/`ble_buf_alloc`), and the GATT service
 //! registry (`ble_gatts_add_svcs`/`ble_gatts_start`).
 //!
-//! - With the `alloc` feature: backed by the global allocator, with the
-//!   allocation size stashed in a small header (C's `free`/`realloc` don't
-//!   pass the layout back).
-//! - Without `alloc`: panicking stubs - the host cannot boot; a static-arena
-//!   backend (future feature) would lift this, as every init-time allocation
-//!   above is deterministic and `MYNEWT_VAL`-sized.
+//! - With the `use-c-heap` feature (a default): thin delegation to the
+//!   platform's C heap - `libc` on hosted targets, and on baremetal whatever
+//!   provides the C allocation entry points (e.g. `esp-alloc`, or `tinyrlibc`
+//!   with its `alloc` feature routing them to the Rust global allocator) -
+//!   the same pattern the `openthread` and `mbedtls-rs` wrappers use.
+//! - Without it: the symbols are **left undefined**, for the application to
+//!   provide as it sees fit (a static arena, a pool, a custom heap) - the
+//!   four `extern "C"` functions below are the contract, and the linker
+//!   will list exactly what is missing. Note that `nimble_platform_mem_malloc`
+//!   must return **zeroed** memory (the C consumers were written against
+//!   ESP-IDF's calloc-backed hooks).
 
-use core::ffi::c_void;
+/// An owned, exact-size slice on the C-host heap backend - the `MBox` idea
+/// from `mbedtls-rs`, extended to slices. Allocated zeroed via the same
+/// `nimble_platform_mem_*` hooks the C host uses (whichever backend provides
+/// them), freed on drop. The backing never moves, so raw pointers into it
+/// stay valid for the lifetime of the owner - which is what the runtime GATT
+/// service builder needs for its def-tree pointer graph.
+pub(crate) struct CSlice<T: Copy> {
+    ptr: core::ptr::NonNull<T>,
+    len: usize,
+}
 
-#[cfg(feature = "alloc")]
+impl<T: Copy> CSlice<T> {
+    pub fn new_zeroed(len: usize) -> Result<Self, crate::BleError> {
+        if len == 0 {
+            return Ok(Self {
+                ptr: core::ptr::NonNull::dangling(),
+                len: 0,
+            });
+        }
+
+        core::ptr::NonNull::new(
+            unsafe { hooks::nimble_platform_mem_calloc(len, core::mem::size_of::<T>()) }.cast(),
+        )
+        .map(|ptr| Self { ptr, len })
+        .ok_or(crate::BleError::new(crate::sys::BLE_HS_ENOMEM as _))
+    }
+}
+
+impl<T: Copy> core::ops::Deref for CSlice<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &[T] {
+        unsafe { core::slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
+    }
+}
+
+impl<T: Copy> core::ops::DerefMut for CSlice<T> {
+    fn deref_mut(&mut self) -> &mut [T] {
+        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
+    }
+}
+
+impl<T: Copy> Drop for CSlice<T> {
+    fn drop(&mut self) {
+        if self.len > 0 {
+            unsafe { hooks::nimble_platform_mem_free(self.ptr.as_ptr().cast()) };
+        }
+    }
+}
+
+// An owned buffer of `Copy` data; safe to hand across threads.
+unsafe impl<T: Copy + Send> Send for CSlice<T> {}
+unsafe impl<T: Copy + Sync> Sync for CSlice<T> {}
+
+// The backend contract, as seen from the Rust side (`CSlice` below): with
+// `use-c-heap` these resolve (at the symbol level) to the definitions above;
+// without it, to whatever the application provides. (A nested module, so the
+// Rust names don't collide with those definitions.)
+mod hooks {
+    use core::ffi::c_void;
+
+    extern "C" {
+        pub fn nimble_platform_mem_calloc(nmemb: usize, size: usize) -> *mut c_void;
+        pub fn nimble_platform_mem_free(ptr: *mut c_void);
+    }
+}
+
+#[cfg(feature = "use-c-heap")]
 mod imp {
     use core::ffi::c_void;
 
-    use alloc::alloc::{alloc_zeroed, dealloc, Layout};
-
-    /// Max-align (C `malloc` contract) header holding the allocation size.
-    const HEADER: usize = 16;
-    const ALIGN: usize = 16;
-
-    pub unsafe fn malloc(size: usize) -> *mut c_void {
-        let Ok(layout) = Layout::from_size_align(HEADER + size, ALIGN) else {
-            return core::ptr::null_mut();
-        };
-
-        let ptr = alloc_zeroed(layout);
-        if ptr.is_null() {
-            return core::ptr::null_mut();
-        }
-
-        ptr.cast::<usize>().write(size);
-        ptr.add(HEADER).cast()
+    extern "C" {
+        fn calloc(nmemb: usize, size: usize) -> *mut c_void;
+        fn realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
+        fn free(ptr: *mut c_void);
     }
 
-    pub unsafe fn free(ptr: *mut c_void) {
-        if ptr.is_null() {
-            return;
-        }
-
-        let base = ptr.cast::<u8>().sub(HEADER);
-        let size = base.cast::<usize>().read();
-        dealloc(
-            base,
-            Layout::from_size_align_unchecked(HEADER + size, ALIGN),
-        );
+    #[no_mangle]
+    unsafe extern "C" fn nimble_platform_mem_malloc(size: usize) -> *mut c_void {
+        calloc(1, size)
     }
 
-    pub unsafe fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
-        if ptr.is_null() {
-            return malloc(new_size);
-        }
-
-        let old_size = ptr.cast::<u8>().sub(HEADER).cast::<usize>().read();
-
-        let new = malloc(new_size);
-        if !new.is_null() {
-            core::ptr::copy_nonoverlapping(
-                ptr.cast::<u8>(),
-                new.cast::<u8>(),
-                old_size.min(new_size),
-            );
-            free(ptr);
-        }
-        new
-    }
-}
-
-#[cfg(not(feature = "alloc"))]
-mod imp {
-    use core::ffi::c_void;
-
-    pub unsafe fn malloc(_size: usize) -> *mut c_void {
-        panic!(
-            "nimble_platform_mem_malloc called without the `alloc` feature \
-             (GATT service registration needs it)"
-        );
+    #[no_mangle]
+    unsafe extern "C" fn nimble_platform_mem_calloc(n: usize, size: usize) -> *mut c_void {
+        calloc(n, size)
     }
 
-    pub unsafe fn free(ptr: *mut c_void) {
-        if !ptr.is_null() {
-            panic!("nimble_platform_mem_free called without the `alloc` feature");
-        }
+    #[no_mangle]
+    unsafe extern "C" fn nimble_platform_mem_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
+        realloc(ptr, size)
     }
 
-    pub unsafe fn realloc(_ptr: *mut c_void, _size: usize) -> *mut c_void {
-        panic!("nimble_platform_mem_realloc called without the `alloc` feature");
+    #[no_mangle]
+    unsafe extern "C" fn nimble_platform_mem_free(ptr: *mut c_void) {
+        free(ptr)
     }
-}
-
-#[no_mangle]
-unsafe extern "C" fn nimble_platform_mem_malloc(size: usize) -> *mut c_void {
-    imp::malloc(size)
-}
-
-#[no_mangle]
-unsafe extern "C" fn nimble_platform_mem_calloc(n: usize, size: usize) -> *mut c_void {
-    // The `alloc` implementation zeroes; the no-alloc one panics anyway
-    match n.checked_mul(size) {
-        Some(total) => imp::malloc(total),
-        None => core::ptr::null_mut(),
-    }
-}
-
-#[no_mangle]
-unsafe extern "C" fn nimble_platform_mem_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
-    imp::realloc(ptr, size)
-}
-
-#[no_mangle]
-unsafe extern "C" fn nimble_platform_mem_free(ptr: *mut c_void) {
-    imp::free(ptr)
 }
