@@ -27,6 +27,9 @@ use embassy_futures::select::select3;
 use nimble_rs_sys as sys;
 
 pub use hci::{ForTransport, NimbleController};
+#[cfg(feature = "std")]
+pub use npl::parker::StdParker;
+pub use npl::parker::{Parker, SpinParker};
 
 #[cfg(feature = "std")]
 extern crate std;
@@ -364,24 +367,52 @@ pub(crate) unsafe extern "C" fn gatts_access_cb(
 ///
 /// `S` is the GATT service table (`()` for none); the driver keeps it alive
 /// for as long as the C host may reference it.
-pub struct BleDriver<S = ()> {
+pub struct BleDriver<'d, S = ()> {
     // Kept alive (not read back) for as long as the C host may reference it
     _services: S,
+    // The borrow of an injected [`Parker`], if any (see `new_with_parker`)
+    _parker: core::marker::PhantomData<&'d ()>,
 }
 
-impl BleDriver<()> {
+impl<'d> BleDriver<'d, ()> {
     /// Initializes the NimBLE host stack (without a GATT service table).
     /// Errors if another driver instance exists or the stack fails to
     /// initialize.
     pub fn new() -> Result<Self, BleError> {
         Self::init(())?;
 
-        Ok(Self { _services: () })
+        Ok(Self {
+            _services: (),
+            _parker: core::marker::PhantomData,
+        })
+    }
+
+    /// Like [`new`](Self::new), with a custom [`Parker`] for the
+    /// pump-while-pending waits (in place of the default - thread parking
+    /// with the `std` feature, a spin loop otherwise). The parker is
+    /// borrowed for as long as the driver lives.
+    pub fn new_with_parker(parker: &'d dyn Parker) -> Result<Self, BleError> {
+        let this = Self::new()?;
+        npl::parker::set_active(Some(promote_parker(parker)));
+
+        Ok(this)
     }
 }
 
+/// Extends an injected parker borrow to the `'static` the process-wide slot
+/// needs (the NPL entry points are reached from C with no lifetime to carry).
+///
+/// SAFETY: the borrow genuinely ends when the driver does - `Drop` resets
+/// the slot. If the driver is *leaked* (`mem::forget`) the slot keeps the
+/// dangling pointer, but nothing can reach it: the singleton stays taken (no
+/// new driver can be constructed), and the C host - the only consumer -
+/// executes exclusively inside driver calls.
+fn promote_parker<'d>(parker: &'d dyn Parker) -> &'static dyn Parker {
+    unsafe { core::mem::transmute::<&'d dyn Parker, &'static dyn Parker>(parker) }
+}
+
 #[cfg(feature = "peripheral")]
-impl<S> BleDriver<S>
+impl<'d, S> BleDriver<'d, S>
 where
     S: AsRef<[sys::ble_gatt_svc_def]>,
 {
@@ -409,17 +440,33 @@ where
         };
 
         if let Err(err) = result {
-            drop(BleDriver { _services: () }); // deinit through the common path
+            drop(BleDriver {
+                _services: (),
+                _parker: core::marker::PhantomData,
+            }); // deinit through the common path
             return Err(err);
         }
 
         Ok(Self {
             _services: services,
+            _parker: core::marker::PhantomData,
         })
+    }
+
+    /// Like [`new_with_services`](Self::new_with_services), with a custom
+    /// [`Parker`] for the pump-while-pending waits.
+    pub fn new_with_services_and_parker(
+        services: S,
+        parker: &'d dyn Parker,
+    ) -> Result<Self, BleError> {
+        let this = Self::new_with_services(services)?;
+        npl::parker::set_active(Some(promote_parker(parker)));
+
+        Ok(this)
     }
 }
 
-impl<S> BleDriver<S> {
+impl<'d, S> BleDriver<'d, S> {
     fn init(_: ()) -> Result<(), BleError> {
         if TAKEN
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -523,7 +570,7 @@ impl<S> BleDriver<S> {
     }
 }
 
-impl<S> Drop for BleDriver<S> {
+impl<'d, S> Drop for BleDriver<'d, S> {
     fn drop(&mut self) {
         unsafe {
             let cfg = core::ptr::addr_of_mut!(sys::ble_hs_cfg);
@@ -534,6 +581,8 @@ impl<S> Drop for BleDriver<S> {
                 (*cfg).gatts_register_cb = None;
             }
         }
+
+        npl::parker::set_active(None);
 
         HOST_CALLBACK.set(None);
         GAP_CALLBACK.set(None);

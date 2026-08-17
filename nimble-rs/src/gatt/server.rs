@@ -188,7 +188,7 @@ impl From<&sys::ble_gatt_register_ctxt> for BleGattRegister {
 /// built with a service table via
 /// [`new_with_services`](BleDriver::new_with_services). `&self`, so callable
 /// re-entrantly.
-impl<S> BleDriver<S>
+impl<'d, S> BleDriver<'d, S>
 where
     S: AsRef<[sys::ble_gatt_svc_def]>,
 {

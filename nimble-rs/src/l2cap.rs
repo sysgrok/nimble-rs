@@ -217,7 +217,7 @@ unsafe extern "C" fn l2cap_event_cb(event: *mut sys::ble_l2cap_event, _arg: *mut
 /// re-entrantly from within the L2CAP hook (e.g. calling
 /// [`l2cap_recv_ready`](Self::l2cap_recv_ready) from an
 /// [`Accept`](L2capEvent::Accept)).
-impl<S> BleDriver<S> {
+impl<'d, S> BleDriver<'d, S> {
     /// Subscribe to L2CAP CoC events ([`L2capEvent`]) - connection lifecycle,
     /// received SDUs, and flow-control notifications for every channel.
     pub fn l2cap_subscribe(

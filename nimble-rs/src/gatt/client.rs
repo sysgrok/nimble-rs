@@ -205,7 +205,7 @@ unsafe extern "C" fn write_cb(
 /// GATT-client operations on the [`BleDriver`]. Available for any `S` - a
 /// device can be both a server and a client. `&self`, so callable
 /// re-entrantly from within the client callback.
-impl<S> BleDriver<S> {
+impl<'d, S> BleDriver<'d, S> {
     /// Subscribe to GATT-client events ([`GattcEvent`]): per-operation
     /// completions plus received notifications/indications.
     pub fn gattc_subscribe(&self, callback: &'static (dyn for<'a> Fn(GattcEvent<'a>) + Sync)) {

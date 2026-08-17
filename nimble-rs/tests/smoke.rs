@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use embassy_futures::select::{select, Either};
 
-use nimble_rs::{BleDriver, ForTransport, HostEvent};
+use nimble_rs::{BleDriver, ForTransport, HostEvent, Parker, SpinParker};
 
 #[path = "common/mock.rs"]
 mod mock;
@@ -42,18 +42,25 @@ fn smoke() {
         .is_test(true)
         .try_init();
 
-    // Two full init -> sync -> deinit cycles, verifying that the singleton can
-    // be re-created after a clean shutdown
-    cycle();
+    // Two full init -> sync -> deinit cycles, verifying that the singleton
+    // can be re-created after a clean shutdown. The second cycle injects the
+    // spin parker, covering both parker injection and the `no_std` wait path
+    // (the first cycle uses the default `StdParker`).
+    cycle(None);
     SYNCED.store(false, Ordering::SeqCst);
-    cycle();
+    let spin = SpinParker;
+    cycle(Some(&spin));
     println!("RE-INIT OK");
 }
 
-fn cycle() {
+fn cycle(parker: Option<&dyn Parker>) {
     let threads_at_start = threads();
 
-    let driver = BleDriver::new().expect("driver init");
+    let driver = match parker {
+        Some(parker) => BleDriver::new_with_parker(parker),
+        None => BleDriver::new(),
+    }
+    .expect("driver init");
     driver.host_subscribe(&on_host_event);
 
     let controller = ForTransport::new(MockController::new());

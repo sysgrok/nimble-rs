@@ -331,7 +331,7 @@ pub fn conn_find(conn_handle: ConnHandle) -> Result<BleConnDesc, BleError> {
 /// GAP operations on the [`BleDriver`]: advertising, the device name, and GAP
 /// event subscription. Available for any `S`. `&self`, so callable
 /// re-entrantly from within the GAP event callback.
-impl<S> BleDriver<S> {
+impl<'d, S> BleDriver<'d, S> {
     /// Set the device name exposed via the GAP service.
     pub fn set_device_name(&self, name: &str) -> Result<(), BleError> {
         // NimBLE copies the name into its own buffer; NUL-terminate on the stack
