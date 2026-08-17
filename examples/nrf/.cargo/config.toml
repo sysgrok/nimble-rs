@@ -1,8 +1,23 @@
+# The default chip is the nRF52840 (the `nrf52840` default feature); the
+# nRF54L builds are Cortex-M33 and must pass `--target` themselves - see
+# `src/lib.rs` for the full command lines.
 [build]
 target = "thumbv7em-none-eabi"
 
-[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+[target.thumbv7em-none-eabi]
 runner = "probe-rs run --chip nRF52840_xxAA --always-print-stacktrace --catch-reset --catch-hardfault"
+
+# The whole nRF54L family shares this triple, so the chip name here can only
+# be a default (the nRF54L15 DK, which is also how an nRF54L05/L10 is
+# usually flashed). For an nRF54LM20 override the runner:
+# `CARGO_TARGET_THUMBV8M_MAIN_NONE_EABIHF_RUNNER="probe-rs run --chip nRF54LM20A"`
+#
+# Note the unquoted key: cargo splits a target section on `.` and rejoins the
+# parts into the triple, so quoting it (the TOML-correct way to write a key
+# with dots) yields a table cargo never looks at - the runner then silently
+# does not apply.
+[target.thumbv8m.main-none-eabihf]
+runner = "probe-rs run --chip nRF54L15 --always-print-stacktrace --catch-reset --catch-hardfault"
 
 [env]
 DEFMT_LOG = "info"

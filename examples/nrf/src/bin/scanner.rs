@@ -1,7 +1,8 @@
-//! The shared scanner example on an nRF52840 - see
+//! The shared scanner example on the nRF - see
 //! `nimble_rs_examples_app::scanner`.
 //!
-//! Run with `cargo run --release --bin scanner`.
+//! Run with `cargo run --release --bin scanner` on the default nRF52840;
+//! see `nimble_rs_examples_nrf` for the other chips.
 
 #![no_std]
 #![no_main]

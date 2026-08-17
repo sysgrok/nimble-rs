@@ -117,9 +117,9 @@ jobs:
   # hermetic tests as the Linux job (the Linux-only example binaries
   # compile to stubs here).
   # Cross-builds the three embedded example crates (each its own workspace
-  # with its own patch pins): nrf52840 over nrf-sdc, ESP32-C6 over esp-radio,
-  # and Pico W over cyw43. A failure means an API or dependency drift broke
-  # one of the real embedded targets.
+  # with its own patch pins): nrf52840 and the nRF54L family over nrf-sdc,
+  # ESP32-C6 over esp-radio, and Pico W over cyw43. A failure means an API or
+  # dependency drift broke one of the real embedded targets.
   examples-embedded:
     name: Embedded examples (nrf, esp, rp)
     runs-on: ubuntu-latest
@@ -129,11 +129,25 @@ jobs:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: thumbv7em-none-eabi, thumbv6m-none-eabi, riscv32imac-unknown-none-elf
+          targets: thumbv7em-none-eabi, thumbv8m.main-none-eabihf, thumbv6m-none-eabi, riscv32imac-unknown-none-elf
       - name: nrf52840 (nrf-sdc)
         run: |
           cargo clippy --release -- -D warnings
           cargo build --release
+        working-directory: examples/nrf
+      # The nRF54L family: a different core (Cortex-M33), so a different
+      # target, and the chip features are mutually exclusive - hence
+      # `--no-default-features`. All but the nRF54L15 differ in the memory map
+      # alone, so a `check` is enough there to catch a mis-wired feature; the
+      # nRF54L15 is built in full, and built last, so that its binaries are
+      # the ones the size report below picks up.
+      - name: nrf54l (nrf-sdc)
+        run: |
+          for chip in nrf54l05 nrf54l10 nrf54lm20; do
+            cargo check --release --no-default-features --features $chip --target thumbv8m.main-none-eabihf
+          done
+          cargo clippy --release --no-default-features --features nrf54l15 --target thumbv8m.main-none-eabihf -- -D warnings
+          cargo build --release --no-default-features --features nrf54l15 --target thumbv8m.main-none-eabihf
         working-directory: examples/nrf
       - name: Pico W (cyw43)
         run: |
@@ -160,6 +174,10 @@ jobs:
             python .github/scripts/memory/gh_sizes.py \
               nrf52_$bin defmtlogs-optz-ltofat thumbv7em-none-eabi \
               examples/nrf/target/thumbv7em-none-eabi/release/$bin \
+              /tmp/bloat_reports/
+            python .github/scripts/memory/gh_sizes.py \
+              nrf54l_$bin defmtlogs-optz-ltofat thumbv8m.main-none-eabihf \
+              examples/nrf/target/thumbv8m.main-none-eabihf/release/$bin \
               /tmp/bloat_reports/
             python .github/scripts/memory/gh_sizes.py \
               rp_$bin defmtlogs-optz-ltofat thumbv6m-none-eabi \

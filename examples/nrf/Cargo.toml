@@ -1,6 +1,9 @@
-# GATT server on nRF52840 over the nrf-sdc SoftDevice Controller - which
-# implements the stock bt-hci typed-command traits natively, so it plugs into
-# nimble-rs directly (no transport, no adapter).
+# The examples on Nordic silicon over the nrf-sdc SoftDevice Controller -
+# which implements the stock bt-hci typed-command traits natively, so it plugs
+# into nimble-rs directly (no transport, no adapter).
+#
+# One chip feature must be active; `nrf52840` is the default. See `src/lib.rs`
+# for the per-chip build commands (the nRF54L family needs its own target).
 [package]
 name = "nimble-rs-examples-nrf"
 version = "0.1.0"
@@ -8,16 +11,35 @@ edition = "2021"
 rust-version = "1.85"
 publish = false
 
+[features]
+default = ["nrf52840"]
+
+## nRF52840 (Cortex-M4F, `thumbv7em-none-eabi`).
+nrf52840 = ["_nrf52", "embassy-nrf/nrf52840", "nrf-sdc/nrf52840", "nrf-mpsl/nrf52840"]
+
+## The nRF54L family (Cortex-M33, `thumbv8m.main-none-eabihf`), application
+## core, secure domain. Only `-app-s` is offered: the RNG behind the
+## controller is CRACEN, which embassy-nrf exposes in the secure domain only.
+nrf54l05 = ["_nrf54l", "embassy-nrf/nrf54l05-app-s", "nrf-sdc/nrf54l05-app-s", "nrf-mpsl/nrf54l05-app-s"]
+nrf54l10 = ["_nrf54l", "embassy-nrf/nrf54l10-app-s", "nrf-sdc/nrf54l10-app-s", "nrf-mpsl/nrf54l10-app-s"]
+nrf54l15 = ["_nrf54l", "embassy-nrf/nrf54l15-app-s", "nrf-sdc/nrf54l15-app-s", "nrf-mpsl/nrf54l15-app-s"]
+nrf54lm20 = ["_nrf54l", "embassy-nrf/nrf54lm20-app-s", "nrf-sdc/nrf54lm20-app-s", "nrf-mpsl/nrf54lm20-app-s"]
+
+## Internal: the family-wide bits the chip features share (never select
+## these directly - `build.rs` insists on exactly one *chip* feature).
+_nrf52 = ["embassy-nrf/time-driver-rtc1"]
+_nrf54l = ["embassy-nrf/time-driver-grtc"]
+
 [dependencies]
 nimble-rs = { path = "../../nimble-rs", features = ["defmt", "log-level-info"] }
 nimble-rs-examples-app = { path = "../app", features = ["defmt"] }
 
 embassy-executor = { version = "0.10", default-features = false, features = ["platform-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { version = "0.5", default-features = false, features = ["defmt"] }
-embassy-nrf = { version = "0.11", default-features = false, features = ["defmt", "nrf52840", "time-driver-rtc1", "gpiote", "unstable-pac", "rt", "time"] }
+embassy-nrf = { version = "0.11", default-features = false, features = ["defmt", "gpiote", "unstable-pac", "rt", "time"] }
 
-nrf-sdc = { version = "0.4", default-features = false, features = ["defmt", "nrf52840", "peripheral", "central"] }
-nrf-mpsl = { version = "0.3", default-features = false, features = ["defmt", "nrf52840", "critical-section-impl"] }
+nrf-sdc = { version = "0.4", default-features = false, features = ["defmt", "peripheral", "central"] }
+nrf-mpsl = { version = "0.3", default-features = false, features = ["defmt", "critical-section-impl"] }
 
 # The C heap for `nimble-rs`'s `use-c-heap`: tinyrlibc's malloc family over
 # the Rust global allocator, which embedded-alloc provides.
