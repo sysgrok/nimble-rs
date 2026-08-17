@@ -55,6 +55,17 @@ struct ble_npl_sem {
     _Alignas(8) void *v[8];
 };
 
+/*
+ * esp-nimble fork extensions: deinit entry points the fork's host calls but
+ * that generic `nimble_npl.h` does not declare (upstream declares them only
+ * in its FreeRTOS port header). Implemented by nimble-rs alongside the rest
+ * of the NPL.
+ */
+struct ble_npl_event;
+struct ble_npl_callout;
+void ble_npl_event_deinit(struct ble_npl_event *ev);
+void ble_npl_callout_deinit(struct ble_npl_callout *co);
+
 #ifdef __cplusplus
 }
 #endif

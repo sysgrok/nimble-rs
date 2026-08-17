@@ -63,6 +63,26 @@ jobs:
       - name: Run the hermetic integration tests on i686
         run: cargo test --target i686-unknown-linux-gnu -p nimble-rs --features std,l2cap
 
+  # Bare-metal cross-check (thumbv7em): the clang leg needs no vendor
+  # toolchain at all - the C host builds against the bundled fake sysroot
+  # (gen/sysroot) - and the use-gcc leg exercises the arm-none-eabi-gcc path.
+  # Also the only compile coverage for the WFE parker.
+  baremetal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabi
+      - name: clang + fake sysroot (no ARM toolchain)
+        run: cargo check -p nimble-rs --no-default-features --features peripheral,central,sm --target thumbv7em-none-eabi
+      - name: arm-none-eabi-gcc (use-gcc feature)
+        run: |
+          sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+          cargo check -p nimble-rs --no-default-features --features peripheral,central,sm,use-gcc --target thumbv7em-none-eabi
+
   macos:
     runs-on: macos-latest
     steps:

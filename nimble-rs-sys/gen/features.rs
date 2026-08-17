@@ -45,6 +45,9 @@ pub const VAL_UNIVERSE: &[(&str, &str)] = &[
     ("BLE_ROLE_CENTRAL", "0"),
     ("BLE_ROLE_OBSERVER", "0"),
     ("BLE_ROLE_PERIPHERAL", "0"),
+    // Host logging: 255 = every `MODLOG_*` call compiled out (the fork's own
+    // default); lowered by the `log-level-*` features
+    ("LOG_LEVEL", "255"),
     // GATT (enabled by the `peripheral`/`central` features)
     ("BLE_GATTS", "0"),
     ("BLE_GATTC", "0"),
@@ -120,6 +123,13 @@ pub const FEATURE_VALS: &[(&str, &[(&str, &str)])] = &[
     ("CENTRAL", &[("BLE_ROLE_CENTRAL", "1"), ("BLE_GATTC", "1")]),
     ("OBSERVER", &[("BLE_ROLE_OBSERVER", "1")]),
     ("EXT_ADV", &[("BLE_EXT_ADV", "1")]),
+    // Host log level; when several are enabled (feature unification), the
+    // most verbose wins - ordered so that later (more verbose) entries
+    // overwrite earlier ones.
+    ("LOG_LEVEL_ERROR", &[("LOG_LEVEL", "3")]),
+    ("LOG_LEVEL_WARN", &[("LOG_LEVEL", "2")]),
+    ("LOG_LEVEL_INFO", &[("LOG_LEVEL", "1")]),
+    ("LOG_LEVEL_DEBUG", &[("LOG_LEVEL", "0")]),
     // `sm-sc-only` first, so that `sm` wins when both are enabled (documented
     // in Cargo.toml): the later entry overwrites the earlier one.
     (

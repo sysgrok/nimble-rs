@@ -64,6 +64,14 @@ sm-sc-only = []
 ## Extended (BLE 5) advertising - `MYNEWT_VAL_BLE_EXT_ADV`
 ext-adv = []
 
+## Host log verbosity (`MYNEWT_VAL_LOG_LEVEL`; off by default - every
+## `MODLOG_*` call compiles out). Enabled logs flow through the `nimble-rs`
+## crate's `log`/`defmt` backends. Most verbose wins if several are enabled.
+log-level-error = []
+log-level-warn = []
+log-level-info = []
+log-level-debug = []
+
 ## L2CAP connection-oriented channels: `MYNEWT_VAL_BLE_L2CAP_COC_MAX_NUM`.
 ## `l2cap` is the convenience default (two channels); the `l2cap-coc-<N>`
 ## values are additive and the largest enabled one wins.

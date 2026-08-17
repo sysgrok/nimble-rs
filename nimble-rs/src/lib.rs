@@ -29,6 +29,8 @@ use nimble_rs_sys as sys;
 pub use hci::{AdvCmds, CentralCmds, ConnCmds, Controller, CoreCmds, ScanCmds, SmCmds};
 #[cfg(feature = "std")]
 pub use npl::parker::StdParker;
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+pub use npl::parker::WfeParker;
 pub use npl::parker::{Parker, SpinParker};
 
 #[cfg(feature = "std")]
@@ -37,6 +39,8 @@ extern crate std;
 // `fmt` must come first for its macros to be visible
 #[macro_use]
 mod fmt;
+
+mod clog;
 
 pub mod gap;
 pub mod gatt;

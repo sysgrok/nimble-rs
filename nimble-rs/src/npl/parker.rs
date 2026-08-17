@@ -148,6 +148,54 @@ impl Parker for StdParker {
     }
 }
 
+/// The bare-metal ARM parker: sleeps with `WFE`, woken by `SEV` (which the
+/// handed-out waker executes) or by any interrupt - on a BLE system the
+/// wake-up of interest *is* an interrupt (the controller delivering the
+/// awaited packet) or is signalled from one.
+///
+/// Race-free by construction: the event register is a one-bit latch, so a
+/// `SEV` (or interrupt) landing between the caller's condition re-check and
+/// the `WFE` leaves it set and the `WFE` falls straight through - the
+/// subtlety that makes this correct where a naive `WFI` parker would have a
+/// lost-wake race.
+///
+/// Caveats:
+/// - `WFE` has no timeout: the deadline is enforced by the caller's re-check
+///   loop upon each wake, so on a system where literally nothing fires (dead
+///   controller, tickless idle, no other interrupts) a timed wait may
+///   overshoot its deadline until the next event.
+/// - [`Parker::ctx_id`] reports a single context; on multi-core parts
+///   (`SEV` is broadcast, so cross-core wakes do work) drive the host from
+///   one core or provide a parker with real per-core identities.
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+pub struct WfeParker;
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+impl Parker for WfeParker {
+    fn ctx_id(&self) -> usize {
+        1
+    }
+
+    fn waker(&self) -> Waker {
+        const SEV_VTABLE: RawWakerVTable = RawWakerVTable::new(
+            |_| RawWaker::new(core::ptr::null(), &SEV_VTABLE),
+            |_| sev(),
+            |_| sev(),
+            |_| {},
+        );
+
+        fn sev() {
+            unsafe { core::arch::asm!("sev", options(nomem, nostack, preserves_flags)) };
+        }
+
+        unsafe { Waker::from_raw(RawWaker::new(core::ptr::null(), &SEV_VTABLE)) }
+    }
+
+    fn park(&self, _deadline: Option<Instant>) {
+        unsafe { core::arch::asm!("wfe", options(nomem, nostack, preserves_flags)) };
+    }
+}
+
 //
 // The active parker
 //

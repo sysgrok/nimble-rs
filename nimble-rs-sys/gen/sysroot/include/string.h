@@ -10,6 +10,7 @@ extern "C" {
 #include <stddef.h>
 
 #define strcpy __builtin_strcpy
+#define strcat __builtin_strcat
 #define strncpy __builtin_strncpy
 
 #define strlen __builtin_strlen

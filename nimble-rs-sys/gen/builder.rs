@@ -69,6 +69,10 @@ impl NimbleBuilder {
 
         vec![
             self.glue_include_dir(),
+            self.crate_root
+                .join("gen")
+                .join("vendored")
+                .join("nanoprintf"),
             root.join("nimble/include"),
             root.join("nimble/host/include"),
             root.join("nimble/host/services/gap/include"),
@@ -148,6 +152,8 @@ impl NimbleBuilder {
         files.push(root.join("nimble/transport/src/transport.c"));
         // The 64-bit-correct replacement of `porting/nimble/src/os_mempool.c`
         files.push(self.crate_root.join("gen/glue/src/os_mempool.c"));
+        // The nanoprintf-backed log shim (see the glue `modlog/modlog.h`)
+        files.push(self.crate_root.join("gen/glue/src/log.c"));
 
         Ok(files)
     }
@@ -162,10 +168,33 @@ impl NimbleBuilder {
             build.host(host);
         }
 
+        // Cross builds default to clang (`cc` adds `--target` itself), with
+        // the bundled fake sysroot standing in for a libc on bare-metal
+        // targets - no vendor GCC toolchain required. The `use-gcc` feature
+        // opts back into whatever cross-GCC `cc` discovers.
+        if std::env::var_os("CARGO_FEATURE_USE_GCC").is_none() {
+            if let (Some(target), Some(host)) = (&self.target, &self.host) {
+                if target != host {
+                    build.compiler("clang");
+
+                    if Self::is_baremetal(target) {
+                        let sysroot = self.crate_root.join("gen").join("sysroot");
+                        build
+                            .flag(format!("-I{}", sysroot.join("include").display()))
+                            .flag(format!("--sysroot={}", sysroot.display()));
+                    }
+                }
+            }
+        }
+
         build
             .flag_if_supported("-ffunction-sections")
             .flag_if_supported("-fdata-sections")
             .warnings(false);
+    }
+
+    fn is_baremetal(target: &str) -> bool {
+        target.ends_with("-none") || target.contains("-none-")
     }
 
     /// Compiles `libnimble.a` and `libnimble-tinycrypt.a` into `out_dir`.
@@ -264,10 +293,20 @@ impl NimbleBuilder {
         }
 
         // Cross-compilation: point clang at the Rust target triple, so that
-        // type layouts (and the MYNEWT_VAL constants) match the target.
+        // type layouts (and the MYNEWT_VAL constants) match the target. For
+        // bare-metal targets, clang additionally gets the bundled
+        // cross-platform fake sysroot (`gen/sysroot`, lifted from
+        // `openthread-sys`) in place of a real libc's headers.
         if let (Some(target), Some(host)) = (&self.target, &self.host) {
             if target != host {
                 builder = builder.clang_arg(format!("--target={target}"));
+
+                if Self::is_baremetal(target) {
+                    let sysroot = self.crate_root.join("gen").join("sysroot");
+                    builder = builder
+                        .clang_arg(format!("-I{}", sysroot.join("include").display()))
+                        .clang_arg(format!("--sysroot={}", sysroot.display()));
+                }
             }
         }
 

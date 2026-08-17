@@ -67,6 +67,14 @@ msys-count-64 = ["nimble-rs-sys/msys-count-64"]
 ## exclusive with the legacy advertising API, mirroring esp-idf-svc)
 ext-adv = ["nimble-rs-sys/ext-adv"]
 
+## C-host log verbosity (off by default: zero flash cost). Enabled logs are
+## delivered through this crate's `log`/`defmt` backend (enable one!),
+## reassembled into lines. Most verbose wins if several are enabled.
+log-level-error = ["nimble-rs-sys/log-level-error"]
+log-level-warn = ["nimble-rs-sys/log-level-warn"]
+log-level-info = ["nimble-rs-sys/log-level-info"]
+log-level-debug = ["nimble-rs-sys/log-level-debug"]
+
 ## Security Manager: `sm` enables legacy + LE Secure Connections pairing;
 ## `sm-sc-only` enables Secure-Connections-only mode (`sm` wins if both set)
 sm = ["nimble-rs-sys/sm"]
