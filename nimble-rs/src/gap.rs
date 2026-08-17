@@ -114,6 +114,7 @@ impl From<&BleDiscParams> for sys::ble_gap_disc_params {
 
 /// What a [`GapEvent::PasskeyAction`] asks of the application; answer with
 /// [`inject_io`].
+#[cfg(any(feature = "sm", feature = "sm-sc-only"))]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum PasskeyAction {
@@ -132,6 +133,7 @@ pub enum PasskeyAction {
 }
 
 /// The application's answer to a [`GapEvent::PasskeyAction`], for [`inject_io`].
+#[cfg(any(feature = "sm", feature = "sm-sc-only"))]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum PasskeyReply {
     /// The passkey the user typed.
@@ -143,6 +145,7 @@ pub enum PasskeyReply {
 }
 
 /// Answer a [`GapEvent::PasskeyAction`] for the given connection.
+#[cfg(any(feature = "sm", feature = "sm-sc-only"))]
 pub fn inject_io(conn_handle: ConnHandle, reply: PasskeyReply) -> Result<(), BleError> {
     let mut io: sys::ble_sm_io = unsafe { core::mem::zeroed() };
 
@@ -201,6 +204,7 @@ pub enum GapEvent<'a> {
     },
     /// Security Manager pairing asks for user interaction; answer with
     /// [`inject_io`].
+    #[cfg(any(feature = "sm", feature = "sm-sc-only"))]
     PasskeyAction {
         conn_handle: ConnHandle,
         action: PasskeyAction,
@@ -259,6 +263,7 @@ impl<'a> From<&'a sys::ble_gap_event> for GapEvent<'a> {
                     reason: complete.reason,
                 }
             }
+            #[cfg(any(feature = "sm", feature = "sm-sc-only"))]
             sys::BLE_GAP_EVENT_PASSKEY_ACTION => {
                 let passkey = unsafe { &anon.passkey };
                 Self::PasskeyAction {
@@ -433,7 +438,7 @@ impl<S> BleDriver<S> {
 
     /// Apply the Security Manager configuration. Call before pairing happens
     /// (typically right after construction).
-    #[cfg(feature = "sm")]
+    #[cfg(any(feature = "sm", feature = "sm-sc-only"))]
     pub fn set_security(&self, security: &BleSecurity) {
         unsafe {
             let cfg = core::ptr::addr_of_mut!(sys::ble_hs_cfg);
