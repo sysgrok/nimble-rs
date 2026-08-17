@@ -4,16 +4,16 @@
 
 use core::ffi::c_int;
 
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 use enumset::{EnumSet, EnumSetType};
 
 use nimble_rs_sys as sys;
 
 use crate::{BleError, ConnHandle};
 
-#[cfg(feature = "gatt-client")]
+#[cfg(feature = "central")]
 pub mod client;
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 pub mod server;
 
 /// A GATT attribute handle (e.g. a characteristic's value handle).
@@ -39,7 +39,7 @@ pub fn att_mtu(conn_handle: ConnHandle) -> Result<u16, BleError> {
 /// `*Authen` flags additionally demand a security level before the access is
 /// dispatched to the [`gatts_subscribe`](crate::BleDriver::gatts_subscribe)
 /// hook.
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 #[derive(Debug, EnumSetType)]
 pub enum BleGattCharFlag {
     /// The value may be broadcast (sets the Broadcast property bit).
@@ -81,7 +81,7 @@ pub enum BleGattCharFlag {
     NotifyIndicateAuthor,
 }
 
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 impl BleGattCharFlag {
     /// The raw NimBLE flag bit (`BLE_GATT_CHR_F_*`). `const`, so it can be
     /// used to build a static service table (see [`gatt_services!`](crate::gatt_services)).
@@ -109,14 +109,14 @@ impl BleGattCharFlag {
     }
 }
 
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 impl From<BleGattCharFlag> for sys::ble_gatt_chr_flags {
     fn from(flag: BleGattCharFlag) -> Self {
         flag.repr()
     }
 }
 
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 pub(crate) fn flags_to_repr(flags: EnumSet<BleGattCharFlag>) -> sys::ble_gatt_chr_flags {
     flags
         .iter()

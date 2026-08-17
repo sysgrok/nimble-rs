@@ -12,15 +12,7 @@ categories = ["embedded", "api-bindings", "hardware-support"]
 keywords = ["ble", "bluetooth", "nimble", "embedded", "async"]
 
 [features]
-default = [
-    "std",
-    "alloc",
-    "peripheral",
-    "central",
-    "gatt-server",
-    "gatt-client",
-    "sm",
-]
+default = ["std", "alloc", "peripheral", "central", "sm"]
 
 ## Conveniences for hosted targets: the thread-park `Parker` (no spinning
 ## during HCI command-ack waits) and `std::error::Error` impls. Implies `alloc`.
@@ -30,26 +22,49 @@ std = ["alloc", "critical-section/std"]
 ## builder; also routes `nimble_platform_mem_*` to the global allocator.
 alloc = []
 
-## BLE roles (forwarded to `nimble-rs-sys`)
+## BLE roles (forwarded to `nimble-rs-sys`). The GATT roles ride on the GAP
+## roles: `peripheral` brings the GATT *server* (Rust API + C), `central`
+## the GATT *client*.
 peripheral = ["broadcaster", "nimble-rs-sys/peripheral"]
 central = ["observer", "nimble-rs-sys/central"]
 broadcaster = ["nimble-rs-sys/broadcaster"]
 observer = ["nimble-rs-sys/observer"]
 
-## GATT server Rust API (the C-side GATT server is always compiled)
-gatt-server = []
-## GATT client Rust API + C-side client procedures
-gatt-client = ["central", "nimble-rs-sys/gatt-client"]
+## L2CAP connection-oriented channels; `l2cap` alone gives two channels,
+## the `l2cap-coc-<N>` values raise the count (additive, largest wins).
+l2cap = ["nimble-rs-sys/l2cap"]
+l2cap-coc-1 = ["l2cap", "nimble-rs-sys/l2cap-coc-1"]
+l2cap-coc-2 = ["l2cap", "nimble-rs-sys/l2cap-coc-2"]
+l2cap-coc-4 = ["l2cap", "nimble-rs-sys/l2cap-coc-4"]
+l2cap-coc-8 = ["l2cap", "nimble-rs-sys/l2cap-coc-8"]
 
-## L2CAP connection-oriented channels (more channels via nimble-rs-sys/l2cap-coc-<N>)
-l2cap = ["nimble-rs-sys/l2cap-coc-2"]
+## Maximum concurrent connections (additive, largest wins; reset value: 4)
+max-connections-1 = ["nimble-rs-sys/max-connections-1"]
+max-connections-2 = ["nimble-rs-sys/max-connections-2"]
+max-connections-4 = ["nimble-rs-sys/max-connections-4"]
+max-connections-8 = ["nimble-rs-sys/max-connections-8"]
+max-connections-16 = ["nimble-rs-sys/max-connections-16"]
+max-connections-32 = ["nimble-rs-sys/max-connections-32"]
+
+## msys mbuf pool block count (additive, largest wins; reset value: 20)
+msys-count-12 = ["nimble-rs-sys/msys-count-12"]
+msys-count-20 = ["nimble-rs-sys/msys-count-20"]
+msys-count-32 = ["nimble-rs-sys/msys-count-32"]
+msys-count-64 = ["nimble-rs-sys/msys-count-64"]
 
 ## Extended (BLE 5) advertising; switches the GAP advertising API (mutually
 ## exclusive with the legacy advertising API, mirroring esp-idf-svc)
 ext-adv = ["nimble-rs-sys/ext-adv"]
 
-## Security Manager (pairing/bonding)
+## Security Manager: `sm` enables legacy + LE Secure Connections pairing;
+## `sm-sc-only` enables Secure-Connections-only mode (`sm` wins if both set)
 sm = ["nimble-rs-sys/sm"]
+sm-sc-only = ["nimble-rs-sys/sm-sc-only"]
+
+## Infrastructure (forwarded to `nimble-rs-sys`)
+prebuilt = ["nimble-rs-sys/prebuilt"]
+force-generate-bindings = ["nimble-rs-sys/force-generate-bindings"]
+use-gcc = ["nimble-rs-sys/use-gcc"]
 
 ## Leave the `ble_transport_ll_*` symbols undefined so an external (C) test
 ## harness can provide its own transport. Test harness use only.

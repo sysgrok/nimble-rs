@@ -43,18 +43,18 @@ exclude = [
 ]
 
 [features]
-default = ["peripheral", "central", "gatt-client", "sm"]
+default = ["peripheral", "central", "sm"]
 
 ## BLE roles (map to `MYNEWT_VAL_BLE_ROLE_*`). A peripheral must be able to
 ## broadcast and a central must be able to observe, hence the implications.
+## The GATT roles ride on the GAP roles: `peripheral` also compiles the GATT
+## *server* (`MYNEWT_VAL_BLE_GATTS`), `central` the GATT *client*
+## (`MYNEWT_VAL_BLE_GATTC`). A broadcaster/observer-only build carries no
+## GATT (or connection) code at all.
 peripheral = ["broadcaster"]
 central = ["observer"]
 broadcaster = []
 observer = []
-
-## GATT client procedures (`MYNEWT_VAL_BLE_GATTC`). The GATT *server* is always
-## compiled in (`MYNEWT_VAL_BLE_GATTS=1`) as nearly every BLE device needs it.
-gatt-client = []
 
 ## Security Manager: `sm` enables both legacy and LE Secure Connections pairing;
 ## `sm-sc-only` enables Secure-Connections-only mode. If both are enabled, `sm` wins.
@@ -65,7 +65,9 @@ sm-sc-only = []
 ext-adv = []
 
 ## L2CAP connection-oriented channels: `MYNEWT_VAL_BLE_L2CAP_COC_MAX_NUM`.
-## Additive; the largest enabled value wins.
+## `l2cap` is the convenience default (two channels); the `l2cap-coc-<N>`
+## values are additive and the largest enabled one wins.
+l2cap = ["l2cap-coc-2"]
 l2cap-coc-1 = []
 l2cap-coc-2 = []
 l2cap-coc-4 = []
@@ -90,7 +92,7 @@ msys-count-64 = []
 ## Infrastructure features
 ## `prebuilt` must select exactly the same knobs as the committed pre-generated
 ## bindings/libraries were produced with (guarded by `features::prebuilt_validity`).
-prebuilt = ["peripheral", "central", "gatt-client", "sm"]
+prebuilt = ["peripheral", "central", "sm"]
 force-generate-bindings = []
 use-gcc = []
 ## Build with the upstream `nimble/host/test` suite's configuration

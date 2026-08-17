@@ -250,7 +250,7 @@ impl<F: ?Sized> CallbackSlot<F> {
 static HOST_CALLBACK: CallbackSlot<dyn Fn(HostEvent) + Sync> = CallbackSlot::new();
 static GAP_CALLBACK: CallbackSlot<dyn for<'a> Fn(gap::GapEvent<'a>) -> i32 + Sync> =
     CallbackSlot::new();
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 static GATTS_CALLBACK: CallbackSlot<dyn for<'a> Fn(gatt::server::GattsEvent<'a>) -> u8 + Sync> =
     CallbackSlot::new();
 
@@ -281,7 +281,7 @@ pub(crate) unsafe extern "C" fn gap_event_cb(
     let event = &*event;
 
     match event.type_ as u32 {
-        #[cfg(feature = "gatt-server")]
+        #[cfg(feature = "peripheral")]
         sys::BLE_GAP_EVENT_SUBSCRIBE | sys::BLE_GAP_EVENT_NOTIFY_TX => {
             if let (Some(cb), Some(event)) = (
                 GATTS_CALLBACK.get(),
@@ -291,7 +291,7 @@ pub(crate) unsafe extern "C" fn gap_event_cb(
             }
             0
         }
-        #[cfg(feature = "gatt-client")]
+        #[cfg(feature = "central")]
         sys::BLE_GAP_EVENT_NOTIFY_RX => {
             if let Some(cb) = gatt::client::GATTC_CALLBACK.get() {
                 cb(gatt::client::GattcEvent::from_notify_rx(event));
@@ -308,7 +308,7 @@ pub(crate) unsafe extern "C" fn gap_event_cb(
     }
 }
 
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 pub(crate) unsafe extern "C" fn gatts_register_cb(
     ctxt: *mut sys::ble_gatt_register_ctxt,
     _arg: *mut c_void,
@@ -325,7 +325,7 @@ pub(crate) unsafe extern "C" fn gatts_register_cb(
 /// dispatches reads and writes here, and we route them to the one
 /// [`gatts_subscribe`](BleDriver::gatts_subscribe) hook, keyed by the
 /// (globally unique) `attr_handle`.
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 pub(crate) unsafe extern "C" fn gatts_access_cb(
     conn_handle: u16,
     attr_handle: u16,
@@ -383,7 +383,7 @@ impl BleDriver<()> {
     }
 }
 
-#[cfg(feature = "gatt-server")]
+#[cfg(feature = "peripheral")]
 impl<S> BleDriver<S>
 where
     S: AsRef<[sys::ble_gatt_svc_def]>,
@@ -442,8 +442,13 @@ impl<S> BleDriver<S> {
             (*cfg).sync_cb = Some(on_sync);
             (*cfg).reset_cb = Some(on_reset);
 
-            sys::ble_svc_gap_init();
-            sys::ble_svc_gatt_init();
+            // The GAP + GATT services exist only when the GATT server is
+            // compiled (`BLE_GATTS`, i.e. the `peripheral` feature)
+            #[cfg(feature = "peripheral")]
+            {
+                sys::ble_svc_gap_init();
+                sys::ble_svc_gatt_init();
+            }
             ble_store_ram_init();
         }
 
@@ -527,7 +532,7 @@ impl<S> Drop for BleDriver<S> {
             let cfg = core::ptr::addr_of_mut!(sys::ble_hs_cfg);
             (*cfg).sync_cb = None;
             (*cfg).reset_cb = None;
-            #[cfg(feature = "gatt-server")]
+            #[cfg(feature = "peripheral")]
             {
                 (*cfg).gatts_register_cb = None;
             }
@@ -535,9 +540,9 @@ impl<S> Drop for BleDriver<S> {
 
         HOST_CALLBACK.set(None);
         GAP_CALLBACK.set(None);
-        #[cfg(feature = "gatt-server")]
+        #[cfg(feature = "peripheral")]
         GATTS_CALLBACK.set(None);
-        #[cfg(feature = "gatt-client")]
+        #[cfg(feature = "central")]
         gatt::client::GATTC_CALLBACK.set(None);
         #[cfg(feature = "l2cap")]
         l2cap::L2CAP_CALLBACK.set(None);

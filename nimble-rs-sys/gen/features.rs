@@ -29,7 +29,9 @@ use std::env;
 /// Notes on individual entries:
 /// - `BLE_GATTS`/`BLE_GATTC` have *no* default in esp-nimble's `syscfg.h` (they
 ///   are normally supplied by ESP-IDF's `esp_nimble_cfg.h`); leaving them
-///   undefined would silently compile the GATT code out.
+///   undefined would silently compile the GATT code out. They are driven by
+///   the `peripheral` (server) and `central` (client) role features - see
+///   [`FEATURE_VALS`].
 /// - `BLE_STATIC_TO_DYNAMIC=0` keeps the C host fully statically allocated
 ///   (the Espressif fork's static->heap conversion is guarded on it).
 /// - The `BLE_TRANSPORT_HS__*`/`BLE_TRANSPORT_LL__*` syscfg *choice* variants
@@ -43,8 +45,8 @@ pub const VAL_UNIVERSE: &[(&str, &str)] = &[
     ("BLE_ROLE_CENTRAL", "0"),
     ("BLE_ROLE_OBSERVER", "0"),
     ("BLE_ROLE_PERIPHERAL", "0"),
-    // GATT
-    ("BLE_GATTS", "1"),
+    // GATT (enabled by the `peripheral`/`central` features)
+    ("BLE_GATTS", "0"),
     ("BLE_GATTC", "0"),
     ("BLE_GATT_CACHING", "0"),
     // Client-Supported-Features characteristic size; an IDF-side knob with no
@@ -108,11 +110,15 @@ pub const VAL_UNIVERSE: &[(&str, &str)] = &[
 /// The first element is the Cargo feature name as it appears in the
 /// `CARGO_FEATURE_*` environment (uppercase, `-` replaced by `_`).
 pub const FEATURE_VALS: &[(&str, &[(&str, &str)])] = &[
-    ("PERIPHERAL", &[("BLE_ROLE_PERIPHERAL", "1")]),
+    // The GATT roles ride on the GAP roles: a connectable peripheral serves
+    // its attributes (`BLE_GATTS`), a central consumes its peers' (`BLE_GATTC`).
+    (
+        "PERIPHERAL",
+        &[("BLE_ROLE_PERIPHERAL", "1"), ("BLE_GATTS", "1")],
+    ),
     ("BROADCASTER", &[("BLE_ROLE_BROADCASTER", "1")]),
-    ("CENTRAL", &[("BLE_ROLE_CENTRAL", "1")]),
+    ("CENTRAL", &[("BLE_ROLE_CENTRAL", "1"), ("BLE_GATTC", "1")]),
     ("OBSERVER", &[("BLE_ROLE_OBSERVER", "1")]),
-    ("GATT_CLIENT", &[("BLE_GATTC", "1")]),
     ("EXT_ADV", &[("BLE_EXT_ADV", "1")]),
     // `sm-sc-only` first, so that `sm` wins when both are enabled (documented
     // in Cargo.toml): the later entry overwrites the earlier one.
@@ -153,6 +159,7 @@ pub const UPSTREAM_TEST_VALS: &[(&str, &str)] = &[
     ("BLE_L2CAP_COC_MAX_NUM", "2"),
     ("BLE_VERSION", "52"),
     ("BLE_L2CAP_ENHANCED_COC", "1"),
+    ("BLE_GATTS", "1"),
     ("BLE_GATTC", "1"),
     ("BLE_HS_DEBUG", "1"),
 ];
@@ -180,14 +187,7 @@ pub const NUMERIC_FAMILIES: &[(&str, &str)] = &[
 
 /// The feature set the committed pre-generated bindings and libraries are
 /// produced with (must match the `prebuilt` bundle in `Cargo.toml`).
-pub const PREBUILT_FEATURES: &[&str] = &[
-    "PERIPHERAL",
-    "BROADCASTER",
-    "CENTRAL",
-    "OBSERVER",
-    "GATT_CLIENT",
-    "SM",
-];
+pub const PREBUILT_FEATURES: &[&str] = &["PERIPHERAL", "BROADCASTER", "CENTRAL", "OBSERVER", "SM"];
 
 /// Extra plain (non-`MYNEWT_VAL`) defines the esp-nimble fork requires.
 ///

@@ -39,12 +39,13 @@ jobs:
       - name: Feature matrix (nimble-rs-sys)
         run: |
           cargo build -p nimble-rs-sys --no-default-features --features peripheral
-          cargo build -p nimble-rs-sys --no-default-features --features central,gatt-client
+          cargo build -p nimble-rs-sys --no-default-features --features central
+          cargo build -p nimble-rs-sys --no-default-features --features broadcaster
           cargo build -p nimble-rs-sys --features ext-adv,l2cap-coc-8,max-connections-16,sm-sc-only
       - name: no-std / no-alloc core check (nimble-rs)
         run: |
           cargo check -p nimble-rs --no-default-features --features peripheral,central,sm
-          cargo check -p nimble-rs --no-default-features --features peripheral,central,sm,gatt-server,gatt-client,l2cap
+          cargo check -p nimble-rs --no-default-features --features peripheral,central,sm,l2cap
 
   # 32-bit behavioral canary: NimBLE upstream forces -m32 for its own Linux
   # sim, citing 4-byte-pointer assumptions; this leg keeps us honest on both
