@@ -1,19 +1,19 @@
 //! L2CAP connection-oriented channels (CoC): a credit-based data pipe that
 //! runs *parallel* to GATT (both over a GAP connection), exposed as
-//! operations on the [`BleDriver`].
+//! operations on the [`Ble`].
 //!
 //! Modeled on the NimBLE L2CAP API of `esp-idf-svc` (`src/ble/l2cap.rs`).
 //!
 //! A channel is opened either by listening on a PSM
-//! ([`l2cap_create_server`](BleDriver::l2cap_create_server)) or by connecting
-//! to a peer's PSM ([`l2cap_connect`](BleDriver::l2cap_connect)). Both, plus
+//! ([`l2cap_create_server`](Ble::l2cap_create_server)) or by connecting
+//! to a peer's PSM ([`l2cap_connect`](Ble::l2cap_connect)). Both, plus
 //! received SDUs and flow-control notifications, are delivered to the single
-//! [`l2cap_subscribe`](BleDriver::l2cap_subscribe) hook.
+//! [`l2cap_subscribe`](Ble::l2cap_subscribe) hook.
 //!
 //! Flow control is credit-based and manual: after handling a
 //! [`L2capEvent::Received`] you replenish the peer's credits with
-//! [`l2cap_recv_ready`](BleDriver::l2cap_recv_ready); a
-//! [`l2cap_send`](BleDriver::l2cap_send) that runs out of credits reports
+//! [`l2cap_recv_ready`](Ble::l2cap_recv_ready); a
+//! [`l2cap_send`](Ble::l2cap_send) that runs out of credits reports
 //! [`SendOutcome::Stalled`] and resumes on [`L2capEvent::TxUnstalled`].
 
 use core::ffi::{c_int, c_void};
@@ -21,7 +21,7 @@ use core::ffi::{c_int, c_void};
 use nimble_rs_sys as sys;
 
 use crate::mbuf::Mbuf;
-use crate::{BleDriver, BleError, CallbackSlot, ConnHandle};
+use crate::{Ble, BleError, CallbackSlot, ConnHandle};
 
 pub(crate) static L2CAP_CALLBACK: CallbackSlot<dyn for<'a> Fn(L2capEvent<'a>) -> i32 + Sync> =
     CallbackSlot::new();
@@ -44,7 +44,7 @@ pub struct L2capChan(*mut sys::ble_l2cap_chan);
 unsafe impl Send for L2capChan {}
 unsafe impl Sync for L2capChan {}
 
-/// The result of a non-erroring [`l2cap_send`](BleDriver::l2cap_send).
+/// The result of a non-erroring [`l2cap_send`](Ble::l2cap_send).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SendOutcome {
@@ -57,11 +57,11 @@ pub enum SendOutcome {
 }
 
 /// An L2CAP CoC event, delivered to the single
-/// [`l2cap_subscribe`](BleDriver::l2cap_subscribe) hook. The hook returns an
+/// [`l2cap_subscribe`](Ble::l2cap_subscribe) hook. The hook returns an
 /// ATT-style status (`0` = ok); it is only consulted for
 /// [`Accept`](Self::Accept), where non-zero rejects the peer.
 pub enum L2capEvent<'a> {
-    /// A channel opened by [`l2cap_connect`](BleDriver::l2cap_connect)
+    /// A channel opened by [`l2cap_connect`](Ble::l2cap_connect)
     /// finished connecting; check `status` (`0` = success) before using `chan`.
     Connected {
         conn_handle: ConnHandle,
@@ -74,9 +74,9 @@ pub enum L2capEvent<'a> {
         chan: L2capChan,
     },
     /// An incoming connection to one of our
-    /// [`l2cap_create_server`](BleDriver::l2cap_create_server) PSMs. The
+    /// [`l2cap_create_server`](Ble::l2cap_create_server) PSMs. The
     /// handler must provide the first receive buffer by calling
-    /// [`l2cap_recv_ready`](BleDriver::l2cap_recv_ready) on `chan`, and may
+    /// [`l2cap_recv_ready`](Ble::l2cap_recv_ready) on `chan`, and may
     /// reject the peer by returning non-zero from the hook.
     Accept {
         conn_handle: ConnHandle,
@@ -85,7 +85,7 @@ pub enum L2capEvent<'a> {
     },
     /// An SDU was received. `data` is valid only for the duration of the
     /// call. After handling it, replenish the peer's credits with
-    /// [`l2cap_recv_ready`](BleDriver::l2cap_recv_ready).
+    /// [`l2cap_recv_ready`](Ble::l2cap_recv_ready).
     Received {
         conn_handle: ConnHandle,
         chan: L2capChan,
@@ -212,12 +212,12 @@ unsafe extern "C" fn l2cap_event_cb(event: *mut sys::ble_l2cap_event, _arg: *mut
     status as c_int
 }
 
-/// L2CAP CoC operations on the [`BleDriver`]. Available for any `S`; a
+/// L2CAP CoC operations on the [`Ble`]. Available for any `S`; a
 /// channel just needs a GAP connection underneath. `&self`, so callable
 /// re-entrantly from within the L2CAP hook (e.g. calling
 /// [`l2cap_recv_ready`](Self::l2cap_recv_ready) from an
 /// [`Accept`](L2capEvent::Accept)).
-impl<'d, S> BleDriver<'d, S> {
+impl<'d, S> Ble<'d, S> {
     /// Subscribe to L2CAP CoC events ([`L2capEvent`]) - connection lifecycle,
     /// received SDUs, and flow-control notifications for every channel.
     pub fn l2cap_subscribe(&self, callback: &'d (dyn for<'a> Fn(L2capEvent<'a>) -> i32 + Sync)) {

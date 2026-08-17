@@ -17,7 +17,7 @@ use log::{info, warn};
 
 use nimble_rs::gap::{BleDiscParams, GapEvent};
 use nimble_rs::gatt::client::GattcEvent;
-use nimble_rs::{BleAddr, BleDriver, BleUuid, ForTransport, HostEvent};
+use nimble_rs::{Ble, BleAddr, BleUuid, ForTransport, HostEvent};
 
 const PEER_NAME: &str = "nimble-rs";
 
@@ -165,7 +165,7 @@ async fn amain() -> anyhow::Result<()> {
 
     let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
-    let driver = BleDriver::new()?;
+    let driver = Ble::new()?;
     driver.host_subscribe(&on_host_event);
     driver.gap_subscribe(&on_gap_event);
     driver.gattc_subscribe(&on_gattc_event);

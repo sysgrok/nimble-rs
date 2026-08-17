@@ -18,7 +18,7 @@ use log::{info, warn};
 use nimble_rs::gap::{BleAdvFields, BleAdvParams, GapEvent};
 use nimble_rs::gatt::server::{BleGattRegister, GattsEvent};
 use nimble_rs::gatt_services;
-use nimble_rs::{BleDriver, BleError, BleUuid, ConnHandle, ForTransport, HostEvent};
+use nimble_rs::{Ble, BleError, BleUuid, ConnHandle, ForTransport, HostEvent};
 
 const DEVICE_NAME: &str = "nimble-rs";
 
@@ -116,7 +116,7 @@ fn on_gatts_event(event: GattsEvent) -> u8 {
 }
 
 /// Configure and start a connectable legacy advertisement.
-fn start_advertising<S>(driver: &BleDriver<S>) -> Result<(), BleError> {
+fn start_advertising<S>(driver: &Ble<S>) -> Result<(), BleError> {
     driver.set_device_name(DEVICE_NAME)?;
 
     driver.adv_set_fields(&BleAdvFields {
@@ -155,7 +155,7 @@ async fn amain() -> anyhow::Result<()> {
     let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
     // The service table is `'static`, so the driver just takes a reference
-    let driver = BleDriver::new_with_services(&SERVICES)?;
+    let driver = Ble::new_with_services(&SERVICES)?;
     driver.host_subscribe(&on_host_event);
     driver.gap_subscribe(&on_gap_event);
     driver.gatts_subscribe(&on_gatts_event);

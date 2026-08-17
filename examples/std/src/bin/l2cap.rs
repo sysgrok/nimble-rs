@@ -18,7 +18,7 @@ use log::{info, warn};
 
 use nimble_rs::gap::{BleAdvFields, BleAdvParams, BleDiscParams, GapEvent};
 use nimble_rs::l2cap::{L2capChan, L2capEvent};
-use nimble_rs::{BleAddr, BleDriver, ForTransport, HostEvent};
+use nimble_rs::{Ble, BleAddr, ForTransport, HostEvent};
 
 const DEVICE_NAME: &str = "nimble-rs-l2cap";
 const PSM: u16 = 0x0080;
@@ -138,7 +138,7 @@ fn on_l2cap_event(event: L2capEvent) -> i32 {
 
 // The hooks are plain `fn`s, so reach the driver through a static handle.
 // (The driver methods used here don't touch the `S` type parameter.)
-static DRIVER: SyncCell<&'static BleDriver> = SyncCell(Cell::new(None));
+static DRIVER: SyncCell<&'static Ble> = SyncCell(Cell::new(None));
 
 fn server_driver_recv_ready(chan: L2capChan) -> Result<(), nimble_rs::BleError> {
     DRIVER.0.get().unwrap().l2cap_recv_ready(chan, MTU)
@@ -175,7 +175,7 @@ async fn amain() -> anyhow::Result<()> {
 
     let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
-    let driver = Box::leak(Box::new(BleDriver::new()?));
+    let driver = Box::leak(Box::new(Ble::new()?));
     DRIVER.0.set(Some(driver));
     driver.host_subscribe(&on_host_event);
     driver.gap_subscribe(&on_gap_event);

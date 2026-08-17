@@ -1,5 +1,5 @@
 //! GATT client: connection, discovery, read/write, and received
-//! notifications, as client operations on the [`BleDriver`].
+//! notifications, as client operations on the [`Ble`].
 //!
 //! Modeled on the NimBLE GATT client API of `esp-idf-svc`
 //! (`src/ble/gatt/client.rs`).
@@ -7,7 +7,7 @@
 //! Every `ble_gattc_*` operation is initiate-now, complete-later: you start
 //! it, and NimBLE invokes a callback when it finishes. We route *all* of
 //! those per-operation callbacks through one shared
-//! [`gattc_subscribe`](BleDriver::gattc_subscribe) hook, correlated by
+//! [`gattc_subscribe`](Ble::gattc_subscribe) hook, correlated by
 //! `conn_handle` (GATT serializes one transaction per connection). Received
 //! notifications/indications ([`GattcEvent::Notify`]) arrive on the
 //! connection's GAP callback and are demuxed here.
@@ -18,7 +18,7 @@ use core::ptr;
 use nimble_rs_sys as sys;
 
 use crate::mbuf::Mbuf;
-use crate::{BleAddr, BleDriver, BleError, BleUuid, CallbackSlot, ConnHandle};
+use crate::{Ble, BleAddr, BleError, BleUuid, CallbackSlot, ConnHandle};
 
 use super::AttrHandle;
 
@@ -26,27 +26,27 @@ pub(crate) static GATTC_CALLBACK: CallbackSlot<dyn for<'a> Fn(GattcEvent<'a>) + 
     CallbackSlot::new();
 
 /// A GATT-client event, delivered to the single
-/// [`gattc_subscribe`](BleDriver::gattc_subscribe) hook.
+/// [`gattc_subscribe`](Ble::gattc_subscribe) hook.
 ///
 /// The discovery variants fire once per discovered item and then once more
 /// with a `None` payload to signal completion. `status` is the raw
 /// ATT/`BLE_HS_*` status (`0` on success, `BLE_HS_EDONE` on discovery
 /// completion).
 pub enum GattcEvent<'a> {
-    /// A service discovered by [`discover_services`](BleDriver::discover_services).
+    /// A service discovered by [`discover_services`](Ble::discover_services).
     Service {
         conn_handle: ConnHandle,
         status: u16,
         service: Option<GattcService>,
     },
     /// A characteristic discovered by
-    /// [`discover_characteristics`](BleDriver::discover_characteristics).
+    /// [`discover_characteristics`](Ble::discover_characteristics).
     Characteristic {
         conn_handle: ConnHandle,
         status: u16,
         chr: Option<GattcChr>,
     },
-    /// Completion of a [`read`](BleDriver::read). On success `data` holds the
+    /// Completion of a [`read`](Ble::read). On success `data` holds the
     /// value; check `status` before reading it.
     ReadComplete {
         conn_handle: ConnHandle,
@@ -54,7 +54,7 @@ pub enum GattcEvent<'a> {
         attr_handle: AttrHandle,
         data: Mbuf<'a>,
     },
-    /// Completion of a [`write`](BleDriver::write).
+    /// Completion of a [`write`](Ble::write).
     WriteComplete {
         conn_handle: ConnHandle,
         status: u16,
@@ -202,10 +202,10 @@ unsafe extern "C" fn write_cb(
     0
 }
 
-/// GATT-client operations on the [`BleDriver`]. Available for any `S` - a
+/// GATT-client operations on the [`Ble`]. Available for any `S` - a
 /// device can be both a server and a client. `&self`, so callable
 /// re-entrantly from within the client callback.
-impl<'d, S> BleDriver<'d, S> {
+impl<'d, S> Ble<'d, S> {
     /// Subscribe to GATT-client events ([`GattcEvent`]): per-operation
     /// completions plus received notifications/indications.
     pub fn gattc_subscribe(&self, callback: &'d (dyn for<'a> Fn(GattcEvent<'a>) + Sync)) {
@@ -220,7 +220,7 @@ impl<'d, S> BleDriver<'d, S> {
     }
 
     /// Initiate a connection to `peer`. The connect/disconnect outcome
-    /// arrives on the GAP hook ([`gap_subscribe`](BleDriver::gap_subscribe));
+    /// arrives on the GAP hook ([`gap_subscribe`](Ble::gap_subscribe));
     /// the connection's received notifications arrive on the GATTC hook.
     pub fn connect(&self, own_addr_type: u8, peer: &BleAddr) -> Result<(), BleError> {
         // bindgen does not emit `BLE_HS_FOREVER` (its C macro is `INT32_MAX`)

@@ -18,7 +18,7 @@ use nimble_rs::gatt::server::{
     BleGattCharacteristic, BleGattRegister, BleGattService, BleGattServices, GattsEvent,
 };
 use nimble_rs::gatt::BleGattCharFlag;
-use nimble_rs::{BleDriver, BleError, BleUuid, ConnHandle, ForTransport, HostEvent};
+use nimble_rs::{Ble, BleError, BleUuid, ConnHandle, ForTransport, HostEvent};
 
 const DEVICE_NAME: &str = "nimble-rs";
 
@@ -95,7 +95,7 @@ fn on_gatts_event(event: GattsEvent) -> u8 {
     0
 }
 
-fn start_advertising<S>(driver: &BleDriver<S>) -> Result<(), BleError> {
+fn start_advertising<S>(driver: &Ble<S>) -> Result<(), BleError> {
     driver.set_device_name(DEVICE_NAME)?;
     driver.adv_set_fields(&BleAdvFields {
         flags: 0x06,
@@ -145,7 +145,7 @@ async fn amain() -> anyhow::Result<()> {
     let services =
         BleGattServices::new(&[BleGattService::new(true, SERVICE_UUID, &characteristics)])?;
 
-    let driver = BleDriver::new_with_services(services)?;
+    let driver = Ble::new_with_services(services)?;
     driver.host_subscribe(&on_host_event);
     driver.gap_subscribe(&on_gap_event);
     driver.gatts_subscribe(&on_gatts_event);

@@ -24,7 +24,7 @@ pub type Packet = heapless::Vec<u8, 257>;
 
 // The mock is a singleton (like the driver it tests); state lives in statics
 // so that test code can drive it while the controller itself is owned by
-// `BleDriver::run`.
+// `Ble::run`.
 static TO_HOST: Channel<CriticalSectionRawMutex, (PacketKind, Packet), 16> = Channel::new();
 static FROM_HOST_ACL: Channel<CriticalSectionRawMutex, Packet, 16> = Channel::new();
 static ADVERTISING: AtomicBool = AtomicBool::new(false);

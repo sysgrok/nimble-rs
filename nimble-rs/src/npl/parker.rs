@@ -10,7 +10,7 @@
 //! `thread::park_timeout`, no spinning). Platforms with better primitives
 //! (WFE/SEV, an esp-rtos semaphore, ...) implement [`Parker`] themselves and
 //! inject it at driver construction
-//! ([`BleDriver::new_with_parker`](crate::BleDriver::new_with_parker)); the
+//! ([`Ble::new_with_parker`](crate::Ble::new_with_parker)); the
 //! active parker lives in a process-wide slot because the NPL entry points
 //! are reached from C with no driver reference in hand.
 

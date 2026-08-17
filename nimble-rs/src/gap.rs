@@ -7,7 +7,7 @@ use core::ptr;
 
 use nimble_rs_sys as sys;
 
-use crate::{BleAddr, BleDriver, BleError, ConnHandle};
+use crate::{Ble, BleAddr, BleError, ConnHandle};
 
 /// Parameters for a legacy advertising procedure (safe version of
 /// `ble_gap_adv_params`).
@@ -187,7 +187,7 @@ pub enum GapEvent<'a> {
         value: u16,
     },
     /// An advertisement (or scan response) received by a
-    /// [`disc`](BleDriver::disc) procedure.
+    /// [`disc`](Ble::disc) procedure.
     Discovery {
         /// The raw advertising PDU type (`BLE_HCI_ADV_RPT_EVTYPE_*`).
         event_type: u8,
@@ -196,7 +196,7 @@ pub enum GapEvent<'a> {
         /// The raw advertising data.
         data: &'a [u8],
     },
-    /// A [`disc`](BleDriver::disc) procedure completed (duration elapsed or
+    /// A [`disc`](Ble::disc) procedure completed (duration elapsed or
     /// canceled).
     DiscoveryComplete {
         /// 0 on normal completion, a `BLE_HS_E*` reason otherwise.
@@ -290,7 +290,7 @@ impl<'a> From<&'a sys::ble_gap_event> for GapEvent<'a> {
 }
 
 /// Security Manager (pairing) configuration, applied to the host with
-/// [`BleDriver::set_security`]. The defaults are "just works": no IO
+/// [`Ble::set_security`]. The defaults are "just works": no IO
 /// capabilities, no bonding, no MITM protection.
 #[derive(Clone, Copy, Default)]
 pub struct BleSecurity {
@@ -319,7 +319,7 @@ impl BleConnDesc {
 /// Look up a connection descriptor by handle.
 ///
 /// A stateless query against the running host, so it is a free function rather
-/// than a [`BleDriver`] method - convenient to call from within a GAP event
+/// than a [`Ble`] method - convenient to call from within a GAP event
 /// callback.
 pub fn conn_find(conn_handle: ConnHandle) -> Result<BleConnDesc, BleError> {
     let mut desc: sys::ble_gap_conn_desc = unsafe { core::mem::zeroed() };
@@ -328,10 +328,10 @@ pub fn conn_find(conn_handle: ConnHandle) -> Result<BleConnDesc, BleError> {
     Ok(BleConnDesc(desc))
 }
 
-/// GAP operations on the [`BleDriver`]: advertising, the device name, and GAP
+/// GAP operations on the [`Ble`]: advertising, the device name, and GAP
 /// event subscription. Available for any `S`. `&self`, so callable
 /// re-entrantly from within the GAP event callback.
-impl<'d, S> BleDriver<'d, S> {
+impl<'d, S> Ble<'d, S> {
     /// Set the device name exposed via the GAP service.
     pub fn set_device_name(&self, name: &str) -> Result<(), BleError> {
         // NimBLE copies the name into its own buffer; NUL-terminate on the stack
@@ -345,7 +345,7 @@ impl<'d, S> BleDriver<'d, S> {
     }
 
     /// Subscribe to GAP events (connect / disconnect / MTU / ...). The callback
-    /// runs from inside [`BleDriver::run`]'s poll and returns the GAP status
+    /// runs from inside [`Ble::run`]'s poll and returns the GAP status
     /// code (`0` on success). The trampoline is wired at
     /// [`adv_start`](Self::adv_start), so this only needs to be set before that.
     pub fn gap_subscribe(&self, callback: &'d (dyn for<'a> Fn(GapEvent<'a>) -> i32 + Sync)) {
@@ -375,7 +375,7 @@ impl<'d, S> BleDriver<'d, S> {
     }
 
     /// Start a legacy advertising procedure. Drive this from a
-    /// [`host_subscribe`](BleDriver::host_subscribe) closure once the host has
+    /// [`host_subscribe`](Ble::host_subscribe) closure once the host has
     /// synced, and restart it from a [`GapEvent::Disconnect`] handler. Events
     /// for the resulting connection are delivered to the
     /// [`gap_subscribe`](Self::gap_subscribe) callback.

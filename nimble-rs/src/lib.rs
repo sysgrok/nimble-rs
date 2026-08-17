@@ -7,7 +7,7 @@
 //! - The NimBLE C host is compiled by `nimble-rs-sys`; its OS layer (NPL) and
 //!   HCI transport are implemented here, in Rust (`npl`, `hci` modules) -
 //!   **thread-free** and **allocation-free**.
-//! - [`BleDriver::run`] is the single future that drives everything: the host
+//! - [`Ble::run`] is the single future that drives everything: the host
 //!   event loop, the callout timers and the HCI pump. Host API calls may
 //!   briefly stall the executor while awaiting a command ack from the
 //!   controller (bounded by the HCI command timeout) - the same latency the C
@@ -323,7 +323,7 @@ pub(crate) unsafe extern "C" fn gatts_register_cb(
 
 /// The single access trampoline shared by *every* characteristic - NimBLE
 /// dispatches reads and writes here, and we route them to the one
-/// [`gatts_subscribe`](BleDriver::gatts_subscribe) hook, keyed by the
+/// [`gatts_subscribe`](Ble::gatts_subscribe) hook, keyed by the
 /// (globally unique) `attr_handle`.
 #[cfg(feature = "peripheral")]
 pub(crate) unsafe extern "C" fn gatts_access_cb(
@@ -360,21 +360,21 @@ pub(crate) unsafe extern "C" fn gatts_access_cb(
 
 /// The BLE host driver: a singleton wrapping the NimBLE host stack.
 ///
-/// Construct it with [`BleDriver::new`] (or, with a GATT service table, via
-/// [`BleDriver::new_with_services`]), subscribe to the events you need, then
-/// drive the stack by awaiting [`BleDriver::run`] with a controller. All
+/// Construct it with [`Ble::new`] (or, with a GATT service table, via
+/// [`Ble::new_with_services`]), subscribe to the events you need, then
+/// drive the stack by awaiting [`Ble::run`] with a controller. All
 /// callbacks run from inside `run`'s poll.
 ///
 /// `S` is the GATT service table (`()` for none); the driver keeps it alive
 /// for as long as the C host may reference it.
-pub struct BleDriver<'d, S = ()> {
+pub struct Ble<'d, S = ()> {
     // Kept alive (not read back) for as long as the C host may reference it
     _services: S,
     // The borrow of an injected [`Parker`], if any (see `new_with_parker`)
     _parker: core::marker::PhantomData<&'d ()>,
 }
 
-impl<'d> BleDriver<'d, ()> {
+impl<'d> Ble<'d, ()> {
     /// Initializes the NimBLE host stack (without a GATT service table).
     /// Errors if another driver instance exists or the stack fails to
     /// initialize.
@@ -419,7 +419,7 @@ macro_rules! promote {
 pub(crate) use promote;
 
 #[cfg(feature = "peripheral")]
-impl<'d, S> BleDriver<'d, S>
+impl<'d, S> Ble<'d, S>
 where
     S: AsRef<[sys::ble_gatt_svc_def]>,
 {
@@ -447,7 +447,7 @@ where
         };
 
         if let Err(err) = result {
-            drop(BleDriver {
+            drop(Ble {
                 _services: (),
                 _parker: core::marker::PhantomData,
             }); // deinit through the common path
@@ -473,7 +473,7 @@ where
     }
 }
 
-impl<'d, S> BleDriver<'d, S> {
+impl<'d, S> Ble<'d, S> {
     fn init(_: ()) -> Result<(), BleError> {
         if TAKEN
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -577,7 +577,7 @@ impl<'d, S> BleDriver<'d, S> {
     }
 }
 
-impl<'d, S> Drop for BleDriver<'d, S> {
+impl<'d, S> Drop for Ble<'d, S> {
     fn drop(&mut self) {
         unsafe {
             let cfg = core::ptr::addr_of_mut!(sys::ble_hs_cfg);

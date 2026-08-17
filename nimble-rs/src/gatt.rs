@@ -37,7 +37,7 @@ pub fn att_mtu(conn_handle: ConnHandle) -> Result<u16, BleError> {
 /// The operation flags become the property bits of the characteristic
 /// declaration (and gate what the ATT server lets a peer do); the `*Enc` /
 /// `*Authen` flags additionally demand a security level before the access is
-/// dispatched to the [`gatts_subscribe`](crate::BleDriver::gatts_subscribe)
+/// dispatched to the [`gatts_subscribe`](crate::Ble::gatts_subscribe)
 /// hook.
 #[cfg(feature = "peripheral")]
 #[derive(Debug, EnumSetType)]

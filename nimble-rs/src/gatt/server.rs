@@ -1,5 +1,5 @@
 //! GATT server: the service table, its events, and server operations on the
-//! [`BleDriver`].
+//! [`Ble`].
 //!
 //! Modeled on the NimBLE GATT server API of `esp-idf-svc`
 //! (`src/ble/gatt/server.rs`).
@@ -9,19 +9,19 @@ use enumset::EnumSet;
 use nimble_rs_sys as sys;
 
 use crate::mbuf::{mbuf_from_slice, Mbuf};
-use crate::{BleDriver, BleError, BleUuid, ConnHandle};
+use crate::{Ble, BleError, BleUuid, ConnHandle};
 
 use super::{flags_to_repr, AttrHandle, BleGattCharFlag};
 
 /// A GATT-server event, delivered to the single
-/// [`gatts_subscribe`](BleDriver::gatts_subscribe) hook.
+/// [`gatts_subscribe`](Ble::gatts_subscribe) hook.
 ///
 /// There are no per-characteristic callbacks: NimBLE dispatches *every*
 /// characteristic read and write through one shared trampoline, and they
 /// arrive here as [`Read`](Self::Read) / [`Write`](Self::Write), keyed by the
 /// globally-unique `attr_handle`. The [`Register`](Self::Register) variants
 /// fire as the service table is registered (during host start, from inside
-/// [`BleDriver::run`]'s first polls).
+/// [`Ble::run`]'s first polls).
 ///
 /// The hook returns the ATT status (`0` on success) for `Read`/`Write`; the
 /// return is ignored for the others.
@@ -184,16 +184,16 @@ impl From<&sys::ble_gatt_register_ctxt> for BleGattRegister {
     }
 }
 
-/// GATT-server operations on the [`BleDriver`], available when the driver was
+/// GATT-server operations on the [`Ble`], available when the driver was
 /// built with a service table via
-/// [`new_with_services`](BleDriver::new_with_services). `&self`, so callable
+/// [`new_with_services`](Ble::new_with_services). `&self`, so callable
 /// re-entrantly.
-impl<'d, S> BleDriver<'d, S>
+impl<'d, S> Ble<'d, S>
 where
     S: AsRef<[sys::ble_gatt_svc_def]>,
 {
     /// Subscribe to GATT-server events ([`GattsEvent`]). Set this **before**
-    /// awaiting [`BleDriver::run`]: the `Register` events (carrying the
+    /// awaiting [`Ble::run`]: the `Register` events (carrying the
     /// attribute handles NimBLE assigned) fire during host start.
     pub fn gatts_subscribe(&self, callback: &'d (dyn for<'a> Fn(GattsEvent<'a>) -> u8 + Sync)) {
         critical_section::with(|_| {
@@ -242,7 +242,7 @@ where
 
 /// A characteristic in a [`BleGattService`] - just its UUID and flags. Reads
 /// and writes are serviced by the single
-/// [`gatts_subscribe`](BleDriver::gatts_subscribe) hook (dispatched by the
+/// [`gatts_subscribe`](Ble::gatts_subscribe) hook (dispatched by the
 /// value handle reported via [`BleGattRegister`]).
 #[derive(Clone, Copy)]
 pub struct BleGattCharacteristic {
@@ -277,7 +277,7 @@ impl<'a> BleGattService<'a> {
 
 /// A GATT service table built **at runtime**, as the raw NimBLE
 /// `ble_gatt_svc_def` tree, ready to hand to
-/// [`BleDriver::new_with_services`]. For a **compile-time** table, see the
+/// [`Ble::new_with_services`]. For a **compile-time** table, see the
 /// [`gatt_services!`](crate::gatt_services) macro.
 ///
 /// The table lives in exact-size allocations on the platform C heap (the
@@ -372,7 +372,7 @@ impl AsRef<[sys::ble_gatt_svc_def]> for BleGattServices {
 /// A **static** (compile-time) GATT service table: a null-terminated
 /// `ble_gatt_svc_def` array wrapped so it can live in a `static`. Build one
 /// with the [`gatt_services!`](crate::gatt_services) macro and pass `&NAME` to
-/// [`BleDriver::new_with_services`] - it needs no heap and lands in flash.
+/// [`Ble::new_with_services`] - it needs no heap and lands in flash.
 #[repr(transparent)]
 pub struct GattServices<const N: usize>([sys::ble_gatt_svc_def; N]);
 
@@ -465,9 +465,9 @@ pub const fn make_svc(
 ///
 /// Expands to a `static NAME` holding the null-terminated NimBLE
 /// `ble_gatt_svc_def` tree (services, characteristics, UUIDs). Pass `&NAME` to
-/// [`BleDriver::new_with_services`](crate::BleDriver::new_with_services).
+/// [`Ble::new_with_services`](crate::Ble::new_with_services).
 /// Reads and writes are serviced through the single
-/// [`gatts_subscribe`](crate::BleDriver::gatts_subscribe) hook, keyed by the
+/// [`gatts_subscribe`](crate::Ble::gatts_subscribe) hook, keyed by the
 /// value handle reported in the `Register` events.
 ///
 /// ```ignore
@@ -484,7 +484,7 @@ pub const fn make_svc(
 ///         chr(HR, Notify | Indicate);
 ///     }
 /// });
-/// // ... let driver = BleDriver::new_with_services(&SERVICES)?;
+/// // ... let driver = Ble::new_with_services(&SERVICES)?;
 /// ```
 #[macro_export]
 macro_rules! gatt_services {

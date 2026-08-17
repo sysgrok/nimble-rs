@@ -14,7 +14,7 @@ use embassy_futures::select::{select, Either};
 use nimble_rs::gap::{BleDiscParams, GapEvent};
 use nimble_rs::gatt::client::GattcEvent;
 use nimble_rs::l2cap::{L2capChan, L2capEvent, SendOutcome};
-use nimble_rs::{BleAddr, BleDriver, ForTransport, HostEvent};
+use nimble_rs::{Ble, BleAddr, ForTransport, HostEvent};
 
 #[path = "common/mock.rs"]
 mod mock;
@@ -240,7 +240,7 @@ fn gattc_smoke() {
         .is_test(true)
         .try_init();
 
-    let driver = BleDriver::new().expect("driver init");
+    let driver = Ble::new().expect("driver init");
     driver.host_subscribe(&on_host_event);
     driver.gap_subscribe(&on_gap_event);
     driver.gattc_subscribe(&on_gattc_event);

@@ -15,7 +15,7 @@ use embassy_futures::select::{select, Either};
 use nimble_rs::gap::{BleAdvFields, BleAdvParams, GapEvent};
 use nimble_rs::gatt::server::GattsEvent;
 use nimble_rs::gatt_services;
-use nimble_rs::{BleDriver, BleUuid, ForTransport, HostEvent};
+use nimble_rs::{Ble, BleUuid, ForTransport, HostEvent};
 
 #[path = "common/mock.rs"]
 mod mock;
@@ -181,7 +181,7 @@ fn gatts_smoke() {
         .is_test(true)
         .try_init();
 
-    let driver = BleDriver::new_with_services(&SERVICES).expect("driver init");
+    let driver = Ble::new_with_services(&SERVICES).expect("driver init");
     driver.host_subscribe(&on_host_event);
     driver.gap_subscribe(&on_gap_event);
     driver.gatts_subscribe(&on_gatts_event);

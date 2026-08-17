@@ -8,7 +8,7 @@
 use log::info;
 
 use nimble_rs::gap::{BleDiscParams, GapEvent};
-use nimble_rs::{BleDriver, ForTransport, HostEvent};
+use nimble_rs::{Ble, ForTransport, HostEvent};
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
@@ -56,7 +56,7 @@ async fn amain() -> anyhow::Result<()> {
 
     let controller = ForTransport::new(nimble_rs_examples_std::linux::Transport::new(dev)?);
 
-    let driver = BleDriver::new()?;
+    let driver = Ble::new()?;
     driver.host_subscribe(&on_host_event);
     driver.gap_subscribe(&on_gap_event);
 
