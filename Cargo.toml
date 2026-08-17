@@ -1,5 +1,5 @@
 [workspace]
-members = ["nimble-rs-sys", "nimble-rs", "examples/std", "tests/upstream"]
+members = ["nimble-rs-sys", "nimble-rs", "examples/app", "examples/std", "tests/upstream"]
 # `tests/upstream` is a member (shared lockfile/target/IDE), but its
 # test-only configuration (nimble-rs `external-ll`, nimble-rs-sys
 # `upstream-test`) must never feature-unify with the other members, so it
@@ -7,9 +7,10 @@ members = ["nimble-rs-sys", "nimble-rs", "examples/std", "tests/upstream"]
 # via `default-members`, and `--workspace` invocations pass
 # `--exclude nimble-rs-upstream-tests`. (Violations fail loudly: undefined
 # `ble_transport_ll_*` symbols and a duplicate embassy-time driver.)
-default-members = ["nimble-rs-sys", "nimble-rs", "examples/std"]
-# `xtask` is excluded as it is tooling, not a library.
-exclude = ["xtask"]
+default-members = ["nimble-rs-sys", "nimble-rs", "examples/app", "examples/std"]
+# `xtask` is excluded as it is tooling, not a library; the embedded example
+# crates are their own workspaces (own targets, lockfiles and patch sections).
+exclude = ["xtask", "examples/nrf", "examples/esp", "examples/rp"]
 resolver = "2"
 
 [workspace.package]

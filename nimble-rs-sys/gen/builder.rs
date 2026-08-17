@@ -197,6 +197,21 @@ impl NimbleBuilder {
         target.ends_with("-none") || target.contains("-none-")
     }
 
+    /// Rust's riscv triples carry the ISA extensions in the arch component
+    /// (`riscv32imac-...`), which clang does not accept; strip them (the
+    /// extensions affect codegen, not the type layouts bindgen needs).
+    fn clang_target(target: &str) -> String {
+        for arch in ["riscv32", "riscv64"] {
+            if let Some(rest) = target.strip_prefix(arch) {
+                if let Some(at) = rest.find('-') {
+                    return format!("{arch}{}", &rest[at..]);
+                }
+            }
+        }
+
+        target.to_string()
+    }
+
     /// Compiles `libnimble.a` and `libnimble-tinycrypt.a` into `out_dir`.
     ///
     /// `cc` emits the `cargo::rustc-link-lib`/`link-search` directives itself,
@@ -299,7 +314,7 @@ impl NimbleBuilder {
         // `openthread-sys`) in place of a real libc's headers.
         if let (Some(target), Some(host)) = (&self.target, &self.host) {
             if target != host {
-                builder = builder.clang_arg(format!("--target={target}"));
+                builder = builder.clang_arg(format!("--target={}", Self::clang_target(target)));
 
                 if Self::is_baremetal(target) {
                     let sysroot = self.crate_root.join("gen").join("sysroot");

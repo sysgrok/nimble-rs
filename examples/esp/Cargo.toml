@@ -1,0 +1,58 @@
+# GATT server on Espressif chips: the esp-radio Bluetooth connector (a
+# bt-hci transport), wrapped in the stock
+# `bt_hci::controller::ExternalController`, plus an example esp-rtos-backed
+# `Parker` (task-semaphore parking instead of busy-polling).
+[package]
+name = "nimble-rs-examples-esp"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+nimble-rs = { path = "../../nimble-rs", features = ["log", "log-level-info"] }
+nimble-rs-examples-app = { path = "../app", features = ["log"] }
+
+bt-hci = { version = "0.9", default-features = false }
+
+esp-hal = { version = "~1.1", features = ["log-04", "unstable"] }
+esp-radio = { version = "1.0.0-beta.0", features = ["ble", "log-04", "unstable"] }
+esp-radio-rtos-driver = "0.3"
+esp-rtos = { version = "0.3", features = ["embassy", "esp-alloc", "esp-radio", "log-04"] }
+# Provides the Rust global allocator AND the C malloc family - i.e. the C
+# heap for `nimble-rs`'s `use-c-heap`
+esp-alloc = "0.10"
+esp-backtrace = { version = "0.19", features = ["panic-handler", "println"] }
+esp-println = { version = "0.17", features = ["log-04"] }
+esp-bootloader-esp-idf = { version = "0.5", features = ["log-04"] }
+
+embassy-executor = "0.10"
+embassy-time = "0.5"
+log = "0.4"
+static_cell = "2"
+
+[features]
+default = ["esp32c6"]
+esp32c2 = ["esp-rtos/esp32c2", "esp-hal/esp32c2", "esp-backtrace/esp32c2", "esp-println/esp32c2", "esp-radio/esp32c2", "esp-bootloader-esp-idf/esp32c2"]
+esp32c3 = ["esp-rtos/esp32c3", "esp-hal/esp32c3", "esp-backtrace/esp32c3", "esp-println/esp32c3", "esp-radio/esp32c3", "esp-bootloader-esp-idf/esp32c3"]
+esp32c6 = ["esp-rtos/esp32c6", "esp-hal/esp32c6", "esp-backtrace/esp32c6", "esp-println/esp32c6", "esp-radio/esp32c6", "esp-bootloader-esp-idf/esp32c6"]
+esp32h2 = ["esp-rtos/esp32h2", "esp-hal/esp32h2", "esp-backtrace/esp32h2", "esp-println/esp32h2", "esp-radio/esp32h2", "esp-bootloader-esp-idf/esp32h2"]
+
+[profile.release]
+debug = 2
+lto = "fat"
+opt-level = "z"
+codegen-units = 1
+
+# Same esp-hal revision as rs-matter-embassy pins
+[patch.crates-io]
+esp-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-rtos = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-radio-rtos-driver = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-alloc = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-backtrace = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-println = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-radio = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-storage = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-metadata-generated = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }

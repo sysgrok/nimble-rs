@@ -19,7 +19,6 @@ use core::convert::Infallible;
 use core::ffi::{c_int, c_void};
 use core::future::poll_fn;
 use core::pin::pin;
-use core::sync::atomic::{AtomicBool, Ordering};
 use core::task::Poll;
 
 use embassy_futures::select::select3;
@@ -258,7 +257,14 @@ static GAP_CALLBACK: CallbackSlot<dyn for<'a> Fn(gap::GapEvent<'a>) -> i32 + Syn
 static GATTS_CALLBACK: CallbackSlot<dyn for<'a> Fn(gatt::server::GattsEvent<'a>) -> u8 + Sync> =
     CallbackSlot::new();
 
-static TAKEN: AtomicBool = AtomicBool::new(false);
+// Not an atomic: RMW atomics (compare-exchange) do not exist on e.g.
+// thumbv6-m, and a critical section is required infrastructure anyway.
+static TAKEN: critical_section::Mutex<Cell<bool>> = critical_section::Mutex::new(Cell::new(false));
+
+/// Atomically takes or releases the singleton flag; returns the previous value.
+fn taken_swap(new: bool) -> bool {
+    critical_section::with(|cs| TAKEN.borrow(cs).replace(new))
+}
 
 extern "C" fn on_sync() {
     debug!("NimBLE host sync");
@@ -479,15 +485,12 @@ where
 
 impl<'d, S> Ble<'d, S> {
     fn init(_: ()) -> Result<(), BleError> {
-        if TAKEN
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {
+        if taken_swap(true) {
             return Err(BleError::new(sys::BLE_HS_EALREADY as _));
         }
 
         if port::init().is_err() {
-            TAKEN.store(false, Ordering::SeqCst);
+            taken_swap(false);
             return Err(BleError::new(sys::BLE_HS_ENOMEM as _));
         }
 
@@ -608,6 +611,6 @@ impl<'d, S> Drop for Ble<'d, S> {
         // registry), after which the C side no longer references `self.services`
         port::deinit();
 
-        TAKEN.store(false, Ordering::SeqCst);
+        taken_swap(false);
     }
 }

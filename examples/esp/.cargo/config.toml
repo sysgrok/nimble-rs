@@ -1,0 +1,15 @@
+[alias]
+esp32c2 = "run --release --no-default-features --features=esp32c2 --target=riscv32imc-unknown-none-elf"
+esp32c3 = "run --release --no-default-features --features=esp32c3 --target=riscv32imc-unknown-none-elf"
+esp32c6 = "run --release --no-default-features --features=esp32c6 --target=riscv32imac-unknown-none-elf"
+esp32h2 = "run --release --no-default-features --features=esp32h2 --target=riscv32imac-unknown-none-elf"
+
+[target.'cfg(all(target_arch = "riscv32", target_os = "none"))']
+runner = "espflash flash --monitor"
+
+[build]
+rustflags = ["-C", "force-frame-pointers"]
+target = "riscv32imac-unknown-none-elf"
+
+[env]
+ESP_LOG = "info"

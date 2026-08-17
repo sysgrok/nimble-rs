@@ -1,0 +1,23 @@
+# The example *application*: the portable part every target example shares
+# (the pattern of trouble-host's `examples/apps`). The per-target crates
+# (nrf, esp, rp, std) only construct their controller and hand it over.
+[package]
+name = "nimble-rs-examples-app"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nimble-rs = { workspace = true }
+embassy-time = { workspace = true }
+embassy-futures = { workspace = true }
+heapless = { workspace = true }
+critical-section = { workspace = true }
+log = { workspace = true, optional = true }
+defmt = { workspace = true, optional = true }
+
+[features]
+log = ["dep:log", "nimble-rs/log"]
+defmt = ["dep:defmt", "nimble-rs/defmt"]

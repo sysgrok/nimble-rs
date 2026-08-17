@@ -116,3 +116,19 @@ mod imp {
         free(ptr)
     }
 }
+
+/// The C `assert()` hook of the bundled bare-metal sysroot
+/// (`nimble-rs-sys/gen/sysroot/include/assert.h`); on hosted targets the
+/// real libc assert is used instead and this stays dead code.
+#[no_mangle]
+extern "C" fn nimble_rs_assert_fail(file: *const core::ffi::c_char, line: core::ffi::c_int) -> ! {
+    let file = if file.is_null() {
+        "<unknown>"
+    } else {
+        unsafe { core::ffi::CStr::from_ptr(file) }
+            .to_str()
+            .unwrap_or("<non-utf8>")
+    };
+
+    panic!("C assertion failed at {}:{}", file, line);
+}

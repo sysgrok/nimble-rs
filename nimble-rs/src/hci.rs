@@ -39,7 +39,6 @@ use bt_hci::{ControllerToHostPacket, FromHciBytes, WriteHci};
 use bt_hci::cmd::le::{
     LeAddDeviceToFilterAcceptList, LeClearFilterAcceptList, LeConnUpdate, LeReadChannelMap,
     LeReadFilterAcceptListSize, LeReadRemoteFeatures, LeReadSuggestedDefaultDataLength,
-    LeRemoteConnectionParameterRequestNegativeReply, LeRemoteConnectionParameterRequestReply,
     LeRemoveDeviceFromFilterAcceptList, LeSetDataLength, LeSetHostChannelClassification,
     LeWriteSuggestedDefaultDataLength,
 };
@@ -148,6 +147,13 @@ impl<
 }
 
 /// Connection management commands (any connectable/initiating role).
+///
+/// Deliberately absent: the LE Remote Connection Parameter Request
+/// reply/negative-reply pair. nrf-sdc's serialized API does not expose them
+/// at all, and the host sends them only in response to the (equally rare)
+/// LL parameter-request event - where the dispatcher's unknown-command ack
+/// declines the request gracefully. Revisit if the ecosystem grows the
+/// impls.
 #[cfg(any(feature = "central", feature = "peripheral"))]
 pub trait ConnCmds:
     bt_hci::controller::Controller
@@ -160,8 +166,6 @@ pub trait ConnCmds:
     + ControllerCmdSync<LeWriteSuggestedDefaultDataLength>
     + ControllerCmdSync<LeReadChannelMap>
     + ControllerCmdSync<LeSetHostChannelClassification>
-    + ControllerCmdAsync<LeRemoteConnectionParameterRequestReply>
-    + ControllerCmdAsync<LeRemoteConnectionParameterRequestNegativeReply>
     + ControllerCmdSync<ReadRssi>
     + ControllerCmdSync<LeAddDeviceToFilterAcceptList>
     + ControllerCmdSync<LeRemoveDeviceFromFilterAcceptList>
@@ -182,8 +186,6 @@ impl<
             + ControllerCmdSync<LeWriteSuggestedDefaultDataLength>
             + ControllerCmdSync<LeReadChannelMap>
             + ControllerCmdSync<LeSetHostChannelClassification>
-            + ControllerCmdAsync<LeRemoteConnectionParameterRequestReply>
-            + ControllerCmdAsync<LeRemoteConnectionParameterRequestNegativeReply>
             + ControllerCmdSync<ReadRssi>
             + ControllerCmdSync<LeAddDeviceToFilterAcceptList>
             + ControllerCmdSync<LeRemoveDeviceFromFilterAcceptList>
@@ -492,8 +494,6 @@ async fn send_cmd<C: Controller>(controller: &C, raw: &[u8]) {
         sync!(LeWriteSuggestedDefaultDataLength);
         sync!(LeReadChannelMap);
         sync!(LeSetHostChannelClassification);
-        nb!(LeRemoteConnectionParameterRequestReply);
-        nb!(LeRemoteConnectionParameterRequestNegativeReply);
         sync!(ReadRssi);
         sync!(LeAddDeviceToFilterAcceptList);
         sync!(LeRemoveDeviceFromFilterAcceptList);
@@ -560,7 +560,9 @@ unsafe extern "C" fn ble_transport_to_ll_cmd_impl(buf: *mut c_void) -> c_int {
     let len = 3 + *buf.cast::<u8>().add(2) as usize;
 
     let mut packet = Packet::new();
-    unwrap!(packet.extend_from_slice(core::slice::from_raw_parts(buf.cast(), len)));
+    unwrap!(packet
+        .extend_from_slice(core::slice::from_raw_parts(buf.cast(), len))
+        .ok());
 
     sys::ble_transport_free(buf);
 

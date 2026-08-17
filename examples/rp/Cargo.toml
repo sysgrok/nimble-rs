@@ -1,0 +1,53 @@
+# GATT server on a Raspberry Pi Pico W: the cyw43 radio's Bluetooth HCI
+# transport, wrapped in the stock `bt_hci::controller::ExternalController`.
+[package]
+name = "nimble-rs-examples-rp"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+nimble-rs = { path = "../../nimble-rs", features = ["defmt", "log-level-info"] }
+nimble-rs-examples-app = { path = "../app", features = ["defmt"] }
+
+bt-hci = { version = "0.9", default-features = false, features = ["defmt"] }
+
+embassy-executor = { version = "0.10", default-features = false, features = ["platform-cortex-m", "executor-thread", "defmt"] }
+embassy-time = { version = "0.5", default-features = false, features = ["defmt"] }
+embassy-rp = { version = "0.10", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp2040"] }
+cyw43 = { version = "0.7", features = ["firmware-logs", "defmt", "bluetooth"] }
+cyw43-pio = "0.10"
+
+# The C heap for `nimble-rs`'s `use-c-heap`: tinyrlibc's malloc family over
+# the Rust global allocator, which embedded-alloc provides.
+embedded-alloc = "0.7"
+tinyrlibc = { version = "0.5", default-features = false, features = ["alloc"] }
+
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+defmt = "1"
+defmt-rtt = "1"
+panic-probe = { version = "1", features = ["print-defmt"] }
+static_cell = "2"
+# thumbv6-m has no CAS instructions; several dependencies need this fallback
+portable-atomic = { version = "1.5", features = ["critical-section"] }
+
+[profile.release]
+debug = 2
+lto = "fat"
+opt-level = "z"
+codegen-units = 1
+
+# Same embassy-family patch set as rs-matter-embassy (cyw43 with Bluetooth
+# needs a newer embassy than the released crates)
+[patch.crates-io]
+cyw43 = { git = "https://github.com/embassy-rs/embassy" }
+cyw43-pio = { git = "https://github.com/embassy-rs/embassy" }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy" }
+embassy-executor = { git = "https://github.com/embassy-rs/embassy" }
+embassy-time = { git = "https://github.com/embassy-rs/embassy" }
+embassy-time-driver = { git = "https://github.com/embassy-rs/embassy" }
+embassy-time-queue-utils = { git = "https://github.com/embassy-rs/embassy" }
+embassy-futures = { git = "https://github.com/embassy-rs/embassy" }
+embassy-sync = { git = "https://github.com/embassy-rs/embassy" }

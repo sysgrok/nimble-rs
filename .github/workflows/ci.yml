@@ -99,6 +99,30 @@ jobs:
   # Portability check for the second hosted platform: the same build +
   # hermetic tests as the Linux job (the Linux-only example binaries
   # compile to stubs here).
+  # Cross-builds the three embedded example crates (each its own workspace
+  # with its own patch pins): nrf52840 over nrf-sdc, ESP32-C6 over esp-radio,
+  # and Pico W over cyw43. A failure means an API or dependency drift broke
+  # one of the real embedded targets.
+  examples-embedded:
+    name: Embedded examples (nrf, esp, rp)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabi, thumbv6m-none-eabi, riscv32imac-unknown-none-elf
+      - name: nrf52840 (nrf-sdc)
+        run: cargo build --release
+        working-directory: examples/nrf
+      - name: Pico W (cyw43)
+        run: cargo build --release
+        working-directory: examples/rp
+      - name: ESP32-C6 (esp-radio)
+        run: cargo build --release
+        working-directory: examples/esp
+
   macos:
     name: macOS build + tests
     runs-on: macos-latest

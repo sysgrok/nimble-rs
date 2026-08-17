@@ -101,8 +101,9 @@ struct Event {
     queued: bool,
 }
 
-const _: () = assert!(core::mem::size_of::<Event>() <= core::mem::size_of::<sys::ble_npl_event>());
-const _: () = assert!(core::mem::align_of::<Event>() <= 8);
+const _: () =
+    core::assert!(core::mem::size_of::<Event>() <= core::mem::size_of::<sys::ble_npl_event>());
+const _: () = core::assert!(core::mem::align_of::<Event>() <= 8);
 
 unsafe fn event(ev: *mut sys::ble_npl_event) -> *mut Event {
     ev.cast()
@@ -168,8 +169,9 @@ struct EventQueue {
     waker: Option<Waker>,
 }
 
-const _: () =
-    assert!(core::mem::size_of::<EventQueue>() <= core::mem::size_of::<sys::ble_npl_eventq>());
+const _: () = core::assert!(
+    core::mem::size_of::<EventQueue>() <= core::mem::size_of::<sys::ble_npl_eventq>()
+);
 
 unsafe fn eventq(evq: *mut sys::ble_npl_eventq) -> *mut EventQueue {
     evq.cast()
@@ -353,7 +355,8 @@ struct Mutex {
     count: u32,
 }
 
-const _: () = assert!(core::mem::size_of::<Mutex>() <= core::mem::size_of::<sys::ble_npl_mutex>());
+const _: () =
+    core::assert!(core::mem::size_of::<Mutex>() <= core::mem::size_of::<sys::ble_npl_mutex>());
 
 unsafe fn mutex(mu: *mut sys::ble_npl_mutex) -> *mut Mutex {
     mu.cast()
@@ -435,7 +438,8 @@ struct Sem {
     waker: Option<Waker>,
 }
 
-const _: () = assert!(core::mem::size_of::<Sem>() <= core::mem::size_of::<sys::ble_npl_sem>());
+const _: () =
+    core::assert!(core::mem::size_of::<Sem>() <= core::mem::size_of::<sys::ble_npl_sem>());
 
 unsafe fn sem(s: *mut sys::ble_npl_sem) -> *mut Sem {
     s.cast()
@@ -533,7 +537,7 @@ struct Callout {
 }
 
 const _: () =
-    assert!(core::mem::size_of::<Callout>() <= core::mem::size_of::<sys::ble_npl_callout>());
+    core::assert!(core::mem::size_of::<Callout>() <= core::mem::size_of::<sys::ble_npl_callout>());
 
 unsafe fn callout(co: *mut sys::ble_npl_callout) -> *mut Callout {
     co.cast()

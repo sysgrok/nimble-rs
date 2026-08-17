@@ -1,0 +1,8 @@
+[build]
+target = "thumbv6m-none-eabi"
+
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+runner = "probe-rs run --chip RP2040 --always-print-stacktrace --catch-reset --catch-hardfault"
+
+[env]
+DEFMT_LOG = "info"

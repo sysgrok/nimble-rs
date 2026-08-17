@@ -1,0 +1,43 @@
+# GATT server on nRF52840 over the nrf-sdc SoftDevice Controller - which
+# implements the stock bt-hci typed-command traits natively, so it plugs into
+# nimble-rs directly (no transport, no adapter).
+[package]
+name = "nimble-rs-examples-nrf"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+nimble-rs = { path = "../../nimble-rs", features = ["defmt", "log-level-info"] }
+nimble-rs-examples-app = { path = "../app", features = ["defmt"] }
+
+embassy-executor = { version = "0.10", default-features = false, features = ["platform-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
+embassy-time = { version = "0.5", default-features = false, features = ["defmt"] }
+embassy-nrf = { version = "0.11", default-features = false, features = ["defmt", "nrf52840", "time-driver-rtc1", "gpiote", "unstable-pac", "rt", "time"] }
+
+nrf-sdc = { version = "0.4", default-features = false, features = ["defmt", "nrf52840", "peripheral", "central"] }
+nrf-mpsl = { version = "0.3", default-features = false, features = ["defmt", "nrf52840", "critical-section-impl"] }
+
+# The C heap for `nimble-rs`'s `use-c-heap`: tinyrlibc's malloc family over
+# the Rust global allocator, which embedded-alloc provides.
+embedded-alloc = "0.7"
+tinyrlibc = { version = "0.5", default-features = false, features = ["alloc"] }
+
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+defmt = "1"
+defmt-rtt = "1"
+panic-probe = { version = "1", features = ["print-defmt"] }
+static_cell = "2"
+
+[profile.release]
+debug = 2
+lto = "fat"
+opt-level = "z"
+codegen-units = 1
+
+# Same nrf-sdc revision as rs-matter-embassy pins
+[patch.crates-io]
+nrf-sdc = { git = "https://github.com/alexmoon/nrf-sdc.git", rev = "f54b6389ffa2750d4d3a4f5435660cb66b47e51a" }
+nrf-mpsl = { git = "https://github.com/alexmoon/nrf-sdc.git", rev = "f54b6389ffa2750d4d3a4f5435660cb66b47e51a" }

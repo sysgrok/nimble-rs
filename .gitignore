@@ -3,3 +3,4 @@
 /tests/target
 /tests/upstream/target
 /xtask/target
+/examples/*/target

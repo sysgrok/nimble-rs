@@ -211,6 +211,11 @@ pub const PREBUILT_FEATURES: &[&str] = &["PERIPHERAL", "BROADCASTER", "CENTRAL",
 pub const EXTRA_DEFINES: &[(&str, &str)] = &[
     ("CONFIG_BT_NIMBLE_GAP_SERVICE", "1"),
     ("CONFIG_BT_NIMBLE_ENABLED", "1"),
+    // Renamed to avoid a duplicate-symbol clash with Espressif's precompiled
+    // `libble_app.a` BLE blob (esp-radio), which carries its own copy of the
+    // NimBLE porting layer's msys pool list. Internal to the porting layer;
+    // nothing binds it from Rust.
+    ("g_msys_pool_list", "nimble_rs_msys_pool_list"),
 ];
 
 /// Computes the effective `MYNEWT_VAL_*` settings for an explicit feature set
