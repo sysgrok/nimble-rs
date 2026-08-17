@@ -5,6 +5,10 @@
 //! Usage: `scanner [hci-index]` (default 0). The HCI device must be down and
 //! the process needs `CAP_NET_ADMIN`.
 
+// The example itself is Linux-only (it drives a BlueZ
+// `HCI_CHANNEL_USER` device); everything it demonstrates is portable.
+#![cfg_attr(not(target_os = "linux"), allow(unused))]
+
 use log::info;
 
 use bt_hci::controller::ExternalController;
@@ -41,10 +45,12 @@ fn on_gap_event(event: GapEvent) -> i32 {
     0
 }
 
+#[cfg(target_os = "linux")]
 fn main() -> anyhow::Result<()> {
     futures_lite::future::block_on(amain())
 }
 
+#[cfg(target_os = "linux")]
 async fn amain() -> anyhow::Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -89,4 +95,9 @@ async fn amain() -> anyhow::Result<()> {
     .await;
 
     Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    eprintln!("this example requires Linux (it drives a BlueZ HCI_CHANNEL_USER device)");
 }

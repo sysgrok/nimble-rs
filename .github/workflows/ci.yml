@@ -11,7 +11,10 @@ env:
   RUST_BACKTRACE: "1"
 
 jobs:
+  # Code hygiene: formatting (rustfmt) and lints (clippy) across the
+  # workspace. A failure means style/lint drift, never a functional problem.
   lint:
+    name: Format + lints
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,9 +26,13 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --exclude nimble-rs-upstream-tests -- -D warnings
 
-  # Build + the hermetic integration tests (mock controller: no hardware, no
-  # privileges) + the feature matrix
+  # The main functional gate on Linux: build everything, run the hermetic
+  # integration tests (nimble-rs/tests: full host over an in-process mock
+  # controller - no hardware, no privileges), build a matrix of feature
+  # combinations of the sys crate, and verify the no_std/no-heap core keeps
+  # compiling.
   test:
+    name: Build + tests + feature matrix (Linux)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,10 +54,13 @@ jobs:
           cargo check -p nimble-rs --no-default-features --features peripheral,central,sm
           cargo check -p nimble-rs --no-default-features --features peripheral,central,sm,l2cap
 
-  # 32-bit behavioral canary: NimBLE upstream forces -m32 for its own Linux
-  # sim, citing 4-byte-pointer assumptions; this leg keeps us honest on both
-  # widths (the 64-bit fixes live in gen/glue).
+  # 32-bit behavioral canary: upstream NimBLE forces -m32 for its own Linux
+  # sim, citing 4-byte-pointer assumptions in the C code; this leg runs the
+  # hermetic tests on a 32-bit target so both pointer widths stay honest
+  # (the 64-bit fixes live in gen/glue). A failure usually means a new
+  # pointer-width assumption crept in.
   i686:
+    name: 32-bit canary (i686)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,11 +73,14 @@ jobs:
       - name: Run the hermetic integration tests on i686
         run: cargo test --target i686-unknown-linux-gnu -p nimble-rs --features std,l2cap
 
-  # Bare-metal cross-check (thumbv7em): the clang leg needs no vendor
-  # toolchain at all - the C host builds against the bundled fake sysroot
-  # (gen/sysroot) - and the use-gcc leg exercises the arm-none-eabi-gcc path.
-  # Also the only compile coverage for the WFE parker.
+  # Compile-checks the whole no_std stack for a real embedded target
+  # (Cortex-M4). The clang leg needs no vendor toolchain at all - the C host
+  # builds against the bundled fake sysroot (gen/sysroot) - and the use-gcc
+  # leg exercises the arm-none-eabi-gcc path instead. Also the only compile
+  # coverage for the WFE parker. A failure means something no_std- or
+  # cross-compile-unfriendly was introduced.
   baremetal:
+    name: Bare-metal cross-check (thumbv7em)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,7 +96,11 @@ jobs:
           sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
           cargo check -p nimble-rs --no-default-features --features peripheral,central,sm,use-gcc --target thumbv7em-none-eabi
 
+  # Portability check for the second hosted platform: the same build +
+  # hermetic tests as the Linux job (the Linux-only example binaries
+  # compile to stubs here).
   macos:
+    name: macOS build + tests
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -95,7 +112,14 @@ jobs:
           cargo build --workspace --exclude nimble-rs-upstream-tests
           cargo test -p nimble-rs --features std,l2cap
 
+  # AddressSanitizer: runs the hermetic tests with compiler-inserted memory
+  # checking in BOTH the C host and the Rust code (heap/stack buffer
+  # overflows, use-after-free, double free...). This is the memory-safety
+  # net for the C/FFI boundary - e.g. it is what would catch a regression of
+  # the 64-bit pointer-truncation bugs fixed in gen/glue. A failure here is
+  # a real memory bug even if the normal test job is green.
   asan:
+    name: Memory checking (AddressSanitizer)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -110,10 +134,14 @@ jobs:
           CFLAGS: -fsanitize=address
         run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -p nimble-rs --features std,l2cap
 
-  # The real-controller tier over BlueZ btvirt virtual devices. Kernel/module
-  # availability varies across runner images, so failures here do not (yet)
-  # fail the build.
+  # The end-to-end tier: the real example binaries paired up over two BlueZ
+  # btvirt *virtual Bluetooth controllers* (gatt_server <-> gatt_client,
+  # l2cap server <-> client) - actual HCI traffic through the kernel, no
+  # mocks. Kernel/module availability varies across runner images, so the
+  # tier auto-skips when the prerequisites are missing and failures do not
+  # (yet) fail the build.
   e2e-btvirt:
+    name: End-to-end over virtual controllers (btvirt)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -121,12 +149,18 @@ jobs:
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
+      # Every step tolerates failure: GitHub's Azure kernels may not ship the
+      # hci_vhci module at all (linux-modules-extra is attempted, but not
+      # guaranteed to contain the Bluetooth modules) - `cargo xtask e2e`
+      # probes the prerequisites itself and skips with an explanation.
       - name: Set up btvirt
         run: |
-          sudo apt-get update && sudo apt-get install -y bluez bluez-test-tools libcap2-bin
-          sudo modprobe hci_vhci
+          sudo apt-get update
+          sudo apt-get install -y bluez bluez-test-tools libcap2-bin
+          sudo apt-get install -y "linux-modules-extra-$(uname -r)" || true
+          sudo modprobe hci_vhci || echo "hci_vhci unavailable - the btvirt tier will be skipped"
           sudo systemctl stop bluetooth || true
-          sudo btvirt -l2 &
+          sudo btvirt -l2 || true &
           sleep 2
       - name: Build and grant CAP_NET_ADMIN
         run: |
@@ -139,10 +173,13 @@ jobs:
       - run: cargo xtask e2e
 
   # The upstream NimBLE host unit test suite (esp-nimble's nimble/host/test,
-  # ~208 cases) running against nimble-rs' porting layer - see tests/upstream
+  # ~208 cases) running against nimble-rs' porting layer (NPL locks/timers,
+  # vendored os_mempool, msys pools, init sequence) - see tests/upstream
   # (workspace member, but never built in the same invocation as the other
-  # members - see the root manifest).
+  # members - see the root manifest). A failure means the porting layer
+  # diverged from what the C host's own tests expect.
   upstream-host-tests:
+    name: Upstream NimBLE host unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -152,8 +189,11 @@ jobs:
       - run: cargo run -p nimble-rs-upstream-tests
 
   # The published nimble-rs-sys package must stay well under the crates.io
-  # limit despite bundling the esp-nimble submodule (see package.exclude).
+  # 10 MB limit despite bundling the esp-nimble submodule; package.exclude
+  # prunes it to ~600 KiB. A failure means the exclude list needs updating
+  # (typically after a submodule bump).
   package-size:
+    name: crates.io package size gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
