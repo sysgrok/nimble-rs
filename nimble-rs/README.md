@@ -4,8 +4,6 @@ Safe, `no_std`, cross-platform Rust wrappers for the [esp-nimble](https://github
 BLE **host** (Espressif's fork of [Apache NimBLE](https://github.com/apache/mynewt-nimble)),
 running over any [`bt-hci`](https://crates.io/crates/bt-hci) controller.
 
-**Status: work in progress.** See [../docs/PLAN.md](../docs/PLAN.md) for the full design document.
-
 ## Highlights
 
 - **Any bt-hci controller.** The host is generic over `bt_hci::controller::Controller`.
@@ -17,3 +15,12 @@ running over any [`bt-hci`](https://crates.io/crates/bt-hci) controller.
   the runtime GATT service table builder - to the platform C heap: `libc`, `esp-alloc`,
   `tinyrlibc`, etc.
 - **Portability surface**: an async controller + an `embassy-time` driver + `critical-section`. Nothing else.
+
+## Why not [`trouble`](https://github.com/embassy-rs/trouble)?
+
+The only reason: `trouble-host` is not (yet) certified.
+
+Otherwise, **`trouble` it is superior to this crate**, in that it is natively async and all in Rust.
+And... the author of `numble-rs` is a contributor to `trouble` as well.
+
+The hope is that `nimble-rs` might be easier to certify with Bluetooth Sig - at least on Espressif chips - in that it is based on `esp-nimble` [which is already certified for ESP-IDF](https://qualification.bluetooth.com/ListingDetails/310315).
