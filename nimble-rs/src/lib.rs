@@ -14,6 +14,20 @@
 //!   design imposes, just not hidden behind a context switch.
 #![no_std]
 
+use core::cell::Cell;
+use core::convert::Infallible;
+use core::ffi::{c_int, c_void};
+use core::future::poll_fn;
+use core::pin::pin;
+use core::sync::atomic::{AtomicBool, Ordering};
+use core::task::Poll;
+
+use embassy_futures::select::select3;
+
+use nimble_rs_sys as sys;
+
+pub use hci::{ForTransport, NimbleController};
+
 #[cfg(feature = "std")]
 extern crate std;
 
@@ -33,20 +47,6 @@ pub mod mbuf;
 mod mem;
 mod npl;
 mod port;
-
-use core::cell::Cell;
-use core::convert::Infallible;
-use core::ffi::{c_int, c_void};
-use core::future::poll_fn;
-use core::pin::pin;
-use core::sync::atomic::{AtomicBool, Ordering};
-use core::task::Poll;
-
-use embassy_futures::select::select3;
-
-use nimble_rs_sys as sys;
-
-pub use hci::{ForTransport, NimbleController};
 
 /// Support hooks for external test harnesses (the upstream NimBLE test suite
 /// runner). Only present with the `external-ll` feature.

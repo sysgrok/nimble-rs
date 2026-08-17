@@ -4,7 +4,7 @@ Safe, `no_std`, cross-platform Rust wrappers for the [esp-nimble](https://github
 BLE host (Espressif's fork of [Apache NimBLE](https://github.com/apache/mynewt-nimble)),
 running over any [`bt-hci`](https://crates.io/crates/bt-hci) controller.
 
-**Status: work in progress.** See [docs/PLAN.md](docs/PLAN.md) for the full design document.
+**Status: work in progress.** See [../docs/PLAN.md](docs/PLAN.md) for the full design document.
 
 ## Highlights
 

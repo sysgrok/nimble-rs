@@ -19,8 +19,6 @@
 //!   never truly contend. Cross-thread contention (std, app calls from
 //!   another thread) degrades to the same pump-park wait.
 
-pub(crate) mod parker;
-
 use core::ffi::{c_int, c_void};
 use core::task::{Poll, Waker};
 
@@ -29,6 +27,8 @@ use embassy_time::Instant;
 use nimble_rs_sys as sys;
 
 use crate::hci;
+
+pub(crate) mod parker;
 
 // The NPL error codes, mirroring `enum ble_npl_error`.
 const OK: sys::ble_npl_error_t = sys::ble_npl_error_BLE_NPL_OK;
