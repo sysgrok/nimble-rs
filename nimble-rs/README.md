@@ -20,7 +20,7 @@ running over any [`bt-hci`](https://crates.io/crates/bt-hci) controller.
 
 The only reason: `trouble-host` is not (yet) certified.
 
-Otherwise, **`trouble` it is superior to this crate**, in that it is natively async and all in Rust.
+Otherwise, **`trouble` is superior to this crate**, in that it is natively async and all in Rust.
 And... the author of `numble-rs` is a contributor to `trouble` as well.
 
 The hope is that `nimble-rs` might be easier to certify with Bluetooth Sig - at least on Espressif chips - in that it is based on `esp-nimble` [which is already certified for ESP-IDF](https://qualification.bluetooth.com/ListingDetails/310315).
