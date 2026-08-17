@@ -20,7 +20,20 @@
 extern "C" {
 #endif
 
+/*
+ * Pointer-width-dependent, like Mynewt's own ports: this feeds
+ * `OS_ALIGNMENT`, which `os_mempool_init` enforces on its buffers - and
+ * with `BLE_STATIC_TO_DYNAMIC=0` those come from the platform C heap
+ * (`ble_buf_alloc`), whose alignment guarantee on 32-bit targets is 4
+ * (e.g. esp-alloc). Demanding 8 there fails initialization whenever an
+ * allocation happens to land on a 4-byte boundary.
+ * (Independent of the `_Alignas(8)` on the NPL object shells below.)
+ */
+#if UINTPTR_MAX > 0xFFFFFFFFu
 #define BLE_NPL_OS_ALIGNMENT 8
+#else
+#define BLE_NPL_OS_ALIGNMENT 4
+#endif
 #define BLE_NPL_TIME_FOREVER UINT32_MAX
 
 /* Milliseconds (1000 ticks per second; the tick conversion functions in the

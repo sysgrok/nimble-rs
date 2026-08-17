@@ -150,9 +150,9 @@ impl<
 ///
 /// Deliberately absent: the LE Remote Connection Parameter Request
 /// reply/negative-reply pair. nrf-sdc's serialized API does not expose them
-/// at all, and the host sends them only in response to the (equally rare)
-/// LL parameter-request event - where the dispatcher's unknown-command ack
-/// declines the request gracefully. Revisit if the ecosystem grows the
+/// at all - so the dispatcher instead keeps the corresponding event masked
+/// (see `send_cmd`), which per the Core spec makes the controller handle
+/// peer parameter requests autonomously. Revisit if the ecosystem grows the
 /// impls.
 #[cfg(any(feature = "central", feature = "peripheral"))]
 pub trait ConnCmds:
@@ -466,6 +466,19 @@ async fn send_cmd<C: Controller>(controller: &C, raw: &[u8]) {
     sync!(Reset);
     sync!(SetEventMask);
     sync!(SetEventMaskPage2);
+
+    if opcode == <LeSetEventMask as Cmd>::OPCODE.to_raw() && params.len() >= 8 {
+        // The host unconditionally unmasks the LE Remote Connection
+        // Parameter Request event, but the reply commands it would answer
+        // with are outside the controller contract (see [`ConnCmds`]).
+        // Masked instead, the controller handles such requests autonomously
+        // (the Core-spec fallback) - rather than the reply dying here with
+        // an unknown-command error.
+        let mut masked = [0u8; 8];
+        masked.copy_from_slice(&params[..8]);
+        masked[0] &= !0x20;
+        return sync_cmd::<C, LeSetEventMask>(controller, opcode, &masked).await;
+    }
     sync!(LeSetEventMask);
     sync!(ReadLocalVersionInformation);
     sync!(ReadLocalSupportedCmds);
