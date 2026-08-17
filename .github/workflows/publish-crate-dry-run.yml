@@ -1,0 +1,45 @@
+name: PublishCrateDryRun
+
+on:
+  workflow_dispatch:
+    inputs:
+      crate:
+        required: true
+        type: choice
+        description: Crate to publish
+        options:
+        - nimble-rs-sys
+        - nimble-rs
+
+jobs:
+  publishdryrun:
+    name: Publish Dry Run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v4
+        with:
+          # The `-sys` crate vendors its C sources from the esp-nimble git
+          # submodule; it must be checked out so the packaged files exist.
+          submodules: true
+      - name: Setup | Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build | Publish Dry Run
+        # Default features suffice: both crates build for the host (the sys
+        # crate cross-compiles its C only when the *Rust* target is foreign),
+        # and `cargo publish` verifies an rlib, so no linking is involved.
+        # Note: the nimble-rs dry run only works once nimble-rs-sys is on
+        # crates.io at the version the workspace references (the path dep is
+        # stripped from the package).
+        run: |
+          cd "${{ github.event.inputs.crate }}"
+          cargo publish --dry-run
+      - name: Get the crate version from cargo
+        run: |
+          version=$(cargo metadata --format-version=1 --no-deps | jq -r ".packages[] | select(.name == \"${{github.event.inputs.crate}}\") | .version")
+          echo "crate_version=$version" >> $GITHUB_ENV
+          echo "${{github.event.inputs.crate}} version: $version"
+      - name: Tag the new release (dry run)
+        run: |
+          echo "Would create tag: ${{github.event.inputs.crate}}-v${{env.crate_version}}"
+          echo "Would use message: Release ${{github.event.inputs.crate}} v${{env.crate_version}}"
