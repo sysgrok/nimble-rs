@@ -20,15 +20,6 @@ mod mock;
 
 use mock::MockController;
 
-static SYNCED: AtomicBool = AtomicBool::new(false);
-
-fn on_host_event(event: HostEvent) {
-    log::info!("host event: {event:?}");
-    if event == HostEvent::Sync {
-        SYNCED.store(true, Ordering::SeqCst);
-    }
-}
-
 fn threads() -> usize {
     std::fs::read_dir("/proc/self/task")
         .map(|dir| dir.count())
@@ -47,7 +38,6 @@ fn smoke() {
     // spin parker, covering both parker injection and the `no_std` wait path
     // (the first cycle uses the default `StdParker`).
     cycle(None);
-    SYNCED.store(false, Ordering::SeqCst);
     let spin = SpinParker;
     cycle(Some(&spin));
     println!("RE-INIT OK");
@@ -55,6 +45,17 @@ fn smoke() {
 
 fn cycle(parker: Option<&dyn Parker>) {
     let threads_at_start = threads();
+
+    // Declared before the driver: the subscription borrows this closure (and
+    // through it, `synced`) for as long as the driver lives - a non-'static
+    // callback, which is what `BleDriver`'s `'d` lifetime enables.
+    let synced = AtomicBool::new(false);
+    let on_host_event = |event: HostEvent| {
+        log::info!("host event: {event:?}");
+        if event == HostEvent::Sync {
+            synced.store(true, Ordering::SeqCst);
+        }
+    };
 
     let driver = match parker {
         Some(parker) => BleDriver::new_with_parker(parker),
@@ -67,7 +68,7 @@ fn cycle(parker: Option<&dyn Parker>) {
 
     futures_lite::future::block_on(async {
         match select(driver.run(controller), async {
-            while !SYNCED.load(Ordering::SeqCst) {
+            while !synced.load(Ordering::SeqCst) {
                 embassy_time::Timer::after_millis(10).await;
             }
 

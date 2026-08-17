@@ -348,8 +348,12 @@ impl<'d, S> BleDriver<'d, S> {
     /// runs from inside [`BleDriver::run`]'s poll and returns the GAP status
     /// code (`0` on success). The trampoline is wired at
     /// [`adv_start`](Self::adv_start), so this only needs to be set before that.
-    pub fn gap_subscribe(&self, callback: &'static (dyn for<'a> Fn(GapEvent<'a>) -> i32 + Sync)) {
-        critical_section::with(|_| crate::GAP_CALLBACK.0.set(Some(callback)));
+    pub fn gap_subscribe(&self, callback: &'d (dyn for<'a> Fn(GapEvent<'a>) -> i32 + Sync)) {
+        critical_section::with(|_| {
+            crate::GAP_CALLBACK.0.set(Some(
+                crate::promote!(callback => (dyn for<'a> Fn(GapEvent<'a>) -> i32 + Sync)),
+            ))
+        });
     }
 
     /// Stop delivering GAP events to the subscribed callback.

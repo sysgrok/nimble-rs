@@ -195,11 +195,12 @@ where
     /// Subscribe to GATT-server events ([`GattsEvent`]). Set this **before**
     /// awaiting [`BleDriver::run`]: the `Register` events (carrying the
     /// attribute handles NimBLE assigned) fire during host start.
-    pub fn gatts_subscribe(
-        &self,
-        callback: &'static (dyn for<'a> Fn(GattsEvent<'a>) -> u8 + Sync),
-    ) {
-        critical_section::with(|_| crate::GATTS_CALLBACK.0.set(Some(callback)));
+    pub fn gatts_subscribe(&self, callback: &'d (dyn for<'a> Fn(GattsEvent<'a>) -> u8 + Sync)) {
+        critical_section::with(|_| {
+            crate::GATTS_CALLBACK.0.set(Some(
+                crate::promote!(callback => (dyn for<'a> Fn(GattsEvent<'a>) -> u8 + Sync)),
+            ))
+        });
     }
 
     /// Stop delivering GATT-server events to the subscribed hook.

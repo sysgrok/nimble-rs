@@ -220,11 +220,10 @@ unsafe extern "C" fn l2cap_event_cb(event: *mut sys::ble_l2cap_event, _arg: *mut
 impl<'d, S> BleDriver<'d, S> {
     /// Subscribe to L2CAP CoC events ([`L2capEvent`]) - connection lifecycle,
     /// received SDUs, and flow-control notifications for every channel.
-    pub fn l2cap_subscribe(
-        &self,
-        callback: &'static (dyn for<'a> Fn(L2capEvent<'a>) -> i32 + Sync),
-    ) {
-        L2CAP_CALLBACK.set(Some(callback));
+    pub fn l2cap_subscribe(&self, callback: &'d (dyn for<'a> Fn(L2capEvent<'a>) -> i32 + Sync)) {
+        L2CAP_CALLBACK.set(Some(
+            crate::promote!(callback => (dyn for<'a> Fn(L2capEvent<'a>) -> i32 + Sync)),
+        ));
     }
 
     /// Stop delivering L2CAP events to the subscribed hook.

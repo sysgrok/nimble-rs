@@ -208,8 +208,10 @@ unsafe extern "C" fn write_cb(
 impl<'d, S> BleDriver<'d, S> {
     /// Subscribe to GATT-client events ([`GattcEvent`]): per-operation
     /// completions plus received notifications/indications.
-    pub fn gattc_subscribe(&self, callback: &'static (dyn for<'a> Fn(GattcEvent<'a>) + Sync)) {
-        GATTC_CALLBACK.set(Some(callback));
+    pub fn gattc_subscribe(&self, callback: &'d (dyn for<'a> Fn(GattcEvent<'a>) + Sync)) {
+        GATTC_CALLBACK.set(Some(
+            crate::promote!(callback => (dyn for<'a> Fn(GattcEvent<'a>) + Sync)),
+        ));
     }
 
     /// Stop delivering GATT-client events to the subscribed hook.

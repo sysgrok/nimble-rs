@@ -393,23 +393,30 @@ impl<'d> BleDriver<'d, ()> {
     /// borrowed for as long as the driver lives.
     pub fn new_with_parker(parker: &'d dyn Parker) -> Result<Self, BleError> {
         let this = Self::new()?;
-        npl::parker::set_active(Some(promote_parker(parker)));
+        npl::parker::set_active(Some(promote!(parker => dyn Parker)));
 
         Ok(this)
     }
 }
 
-/// Extends an injected parker borrow to the `'static` the process-wide slot
-/// needs (the NPL entry points are reached from C with no lifetime to carry).
+/// Extends a driver-lifetime (`'d`) borrow - an injected [`Parker`] or a
+/// subscribed callback - to the `'static` the process-wide slots need (the
+/// NPL and callback entry points are reached from C with no lifetime to
+/// carry). Both the reference lifetime and the trait object's own lifetime
+/// bound are erased.
 ///
 /// SAFETY: the borrow genuinely ends when the driver does - `Drop` resets
-/// the slot. If the driver is *leaked* (`mem::forget`) the slot keeps the
-/// dangling pointer, but nothing can reach it: the singleton stays taken (no
-/// new driver can be constructed), and the C host - the only consumer -
-/// executes exclusively inside driver calls.
-fn promote_parker<'d>(parker: &'d dyn Parker) -> &'static dyn Parker {
-    unsafe { core::mem::transmute::<&'d dyn Parker, &'static dyn Parker>(parker) }
+/// every slot. If the driver is *leaked* (`mem::forget`) the slots keep
+/// their dangling pointers, but nothing can reach them: the singleton stays
+/// taken (no new driver can be constructed), and the C host - the only
+/// consumer - executes exclusively inside driver calls.
+macro_rules! promote {
+    ($r:expr => $ty:ty) => {
+        unsafe { core::mem::transmute::<&$ty, &'static $ty>($r) }
+    };
 }
+
+pub(crate) use promote;
 
 #[cfg(feature = "peripheral")]
 impl<'d, S> BleDriver<'d, S>
@@ -460,7 +467,7 @@ where
         parker: &'d dyn Parker,
     ) -> Result<Self, BleError> {
         let this = Self::new_with_services(services)?;
-        npl::parker::set_active(Some(promote_parker(parker)));
+        npl::parker::set_active(Some(promote!(parker => dyn Parker)));
 
         Ok(this)
     }
@@ -501,8 +508,8 @@ impl<'d, S> BleDriver<'d, S> {
 
     /// Subscribes to host events. The callback runs from inside [`Self::run`]'s
     /// poll and may freely call host APIs.
-    pub fn host_subscribe(&self, callback: &'static (dyn Fn(HostEvent) + Sync)) {
-        HOST_CALLBACK.set(Some(callback));
+    pub fn host_subscribe(&self, callback: &'d (dyn Fn(HostEvent) + Sync)) {
+        HOST_CALLBACK.set(Some(promote!(callback => (dyn Fn(HostEvent) + Sync))));
     }
 
     /// Drives the host stack over the given controller. Must be polled for the
