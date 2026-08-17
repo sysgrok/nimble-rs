@@ -1,31 +1,27 @@
-# The upstream NimBLE host test suite (esp-nimble/nimble/host/test), compiled
-# against nimble-rs' porting layer. Deliberately OUTSIDE the workspace: its
-# `upstream-test` sys config (phony HCI acks, SELFTEST) must never
-# feature-unify into normal builds. Run via `cargo xtask itest`.
+# The upstream NimBLE host *unit* test suite (esp-nimble/nimble/host/test),
+# compiled against nimble-rs' porting layer. Run with
+# `cargo run -p nimble-rs-upstream-tests`.
+#
+# A workspace member, but NOT a default-member and excluded from
+# `--workspace` invocations (see the root manifest): its test-only host
+# configuration (phony HCI acks, SELFTEST, `external-ll`) must never
+# feature-unify with the other members, which happens whenever it is built
+# in the same cargo invocation.
 [package]
 name = "nimble-rs-upstream-tests"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 publish = false
 
 [dependencies]
-nimble-rs = { path = "../../nimble-rs", default-features = false, features = [
-    "std",
-    "peripheral",
-    "central",
-    "gatt-server",
-    "gatt-client",
-    "sm",
-    "l2cap",
-    "external-ll",
-    "log",
-] }
-nimble-rs-sys = { path = "../../nimble-rs-sys", features = ["upstream-test"] }
-embassy-time = { version = "0.5", features = ["mock-driver", "generic-queue-16"] }
-env_logger = "0.11"
-log = "0.4"
+# default features (std/alloc/roles/gatt/sm) plus the test-only extras
+nimble-rs = { workspace = true, features = ["l2cap", "external-ll", "log"] }
+nimble-rs-sys = { workspace = true, features = ["upstream-test"] }
+embassy-time = { workspace = true, features = ["mock-driver", "generic-queue-16"] }
+env_logger = { workspace = true }
+log = { workspace = true }
 
 [build-dependencies]
-cc = "1.1"
-
-[workspace]
+cc = { workspace = true }

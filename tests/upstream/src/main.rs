@@ -1,5 +1,10 @@
-//! Runs the upstream NimBLE host test suite (36 suites, ~250 cases) against
-//! nimble-rs' porting layer (NPL, vendored os_mempool, port init sequence).
+//! Runs the upstream NimBLE host *unit* test suite (36 suites, ~208 cases)
+//! against nimble-rs' porting layer (NPL locks/timers, vendored os_mempool,
+//! msys pools, init sequence). Standalone crate - `cargo run` from this
+//! directory; deliberately excluded from the workspace so its test-only host
+//! configuration (phony HCI acks etc.) can never feature-unify into a real
+//! build. The HCI transport is stubbed on both ends here; nimble-rs' own
+//! bt-hci integration is covered by `cargo xtask e2e` instead.
 //!
 //! The C side provides the suites and their `main` (renamed to
 //! `nimble_upstream_test_main`); this crate provides what Mynewt's `sysinit()`

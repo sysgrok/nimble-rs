@@ -1,16 +1,22 @@
 [workspace]
-members = ["nimble-rs-sys", "nimble-rs", "examples/std"]
-# `tests` is excluded because its binaries will use a driver harness whose
-# dependency requirements (executor, virtual controllers) conflict with the
-# `examples/std` crate; `xtask` is excluded as it is tooling, not a library.
-exclude = ["tests", "xtask"]
+members = ["nimble-rs-sys", "nimble-rs", "examples/std", "tests/upstream"]
+# `tests/upstream` is a member (shared lockfile/target/IDE), but its
+# test-only configuration (nimble-rs `external-ll`, nimble-rs-sys
+# `upstream-test`) must never feature-unify with the other members, so it
+# must not be built in the same cargo invocation: bare cargo commands skip it
+# via `default-members`, and `--workspace` invocations pass
+# `--exclude nimble-rs-upstream-tests`. (Violations fail loudly: undefined
+# `ble_transport_ll_*` symbols and a duplicate embassy-time driver.)
+default-members = ["nimble-rs-sys", "nimble-rs", "examples/std"]
+# `xtask` is excluded as it is tooling, not a library.
+exclude = ["xtask"]
 resolver = "2"
 
 [workspace.package]
 edition = "2021"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/ivmarkov/nimble-rs"
+repository = "https://github.com/sysgrok/nimble-rs"
 
 [workspace.dependencies]
 nimble-rs-sys = { version = "0.1.0", path = "nimble-rs-sys" }

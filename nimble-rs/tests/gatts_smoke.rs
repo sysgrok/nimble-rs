@@ -17,7 +17,10 @@ use nimble_rs::gatt::server::GattsEvent;
 use nimble_rs::gatt_services;
 use nimble_rs::{BleDriver, BleUuid, ForTransport, HostEvent};
 
-use nimble_rs_examples_std::mock::{self, MockController};
+#[path = "common/mock.rs"]
+mod mock;
+
+use mock::MockController;
 
 const SVC: BleUuid = BleUuid::uuid128(0xad91b201_73474047_9e173bed_82d75f9d);
 const RECV: BleUuid = BleUuid::uuid128(0xb6fccb50_87be44f3_ae22f854_85ea42c4);
@@ -171,10 +174,12 @@ async fn host_att() -> heapless::Vec<u8, 64> {
     heapless::Vec::from_slice(&acl[8..]).unwrap()
 }
 
-fn main() {
-    env_logger::builder()
+#[test]
+fn gatts_smoke() {
+    let _ = env_logger::builder()
         .filter_level(log::LevelFilter::Info)
-        .init();
+        .is_test(true)
+        .try_init();
 
     let driver = BleDriver::new_with_services(&SERVICES).expect("driver init");
     driver.host_subscribe(&on_host_event);

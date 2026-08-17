@@ -1,16 +1,19 @@
 //! Repo tooling. Run from the workspace root as `cargo xtask <command>`
 //! (see `.cargo/config.toml`).
 //!
-//! - `itest`: build and run the **upstream** NimBLE host test suite
-//!   (`esp-nimble/nimble/host/test`: 36 suites / ~250 cases) against this
-//!   crate's porting layer, via the excluded `tests/upstream` harness crate.
-//! - `e2e`: this repo's own end-to-end tests, in two tiers:
-//!   - **hermetic** (always): the `*_smoke` binaries against the in-process
-//!     mock controller - no hardware, no privileges;
-//!   - **btvirt** (when possible): the real example pairs over two BlueZ
-//!     `btvirt` virtual controllers. Skipped with an explanation unless the
-//!     prerequisites hold (see the README quickstart).
+//! - `e2e`: the end-to-end tier that genuinely needs orchestration - the
+//!   real example binaries running as pairs over two BlueZ `btvirt` virtual
+//!   controllers (two processes, an external daemon, `CAP_NET_ADMIN` on the
+//!   binaries). Skipped with an explanation unless the prerequisites hold
+//!   (see the README quickstart).
 //! - `gen`: (future) regenerate the pre-built per-target bindings/libraries.
+//!
+//! Everything that *can* be a plain cargo test is one: the hermetic
+//! mock-controller tests are `cargo test -p nimble-rs --features l2cap`, and
+//! the upstream NimBLE host unit suite is the `tests/upstream` crate
+//! (`cargo run -p nimble-rs-upstream-tests`; a workspace member that is
+//! never built in the same invocation as the other members - see the root
+//! manifest).
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -22,10 +25,9 @@ use anyhow::{bail, Context, Result};
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
-        Some("itest") => itest(),
         Some("e2e") => e2e(),
         Some("gen") => bail!("`gen` (pre-built bindings/libs) is not implemented yet"),
-        other => bail!("usage: cargo xtask <itest|e2e|gen> (got {other:?})"),
+        other => bail!("usage: cargo xtask <e2e|gen> (got {other:?})"),
     }
 }
 
@@ -87,29 +89,6 @@ fn build_examples() -> Result<()> {
         .status()?;
     if !status.success() {
         bail!("build failed");
-    }
-    Ok(())
-}
-
-/// Tier 1: the hermetic smoke gates (mock controller; CI-safe).
-fn hermetic() -> Result<()> {
-    for (name, markers) in [
-        ("smoke", &["SYNC OK", "RE-INIT OK"] as &[&str]),
-        ("gatts_smoke", &["GATT SMOKE OK"]),
-        ("gattc_smoke", &["GATTC SMOKE OK"]),
-    ] {
-        print!("== hermetic: {name} ... ");
-        let (timed_out, output) = run_captured(&bin(name), &[], Duration::from_secs(30))?;
-
-        if timed_out {
-            bail!("{name} timed out\n--- output ---\n{output}");
-        }
-        for marker in markers {
-            if !output.contains(marker) {
-                bail!("{name}: marker {marker:?} missing\n--- output ---\n{output}");
-            }
-        }
-        println!("ok");
     }
     Ok(())
 }
@@ -238,27 +217,12 @@ fn btvirt(dev_a: u16, dev_b: u16) -> Result<bool> {
 
 fn e2e() -> Result<()> {
     build_examples()?;
-    hermetic()?;
-    let ran_btvirt = btvirt(0, 1)?;
 
-    println!(
-        "\ne2e PASSED (hermetic{})",
-        if ran_btvirt { " + btvirt" } else { "; btvirt skipped" }
-    );
-    Ok(())
-}
-
-/// Builds and runs the upstream NimBLE host test suite through the excluded
-/// `tests/upstream` harness crate.
-fn itest() -> Result<()> {
-    println!("== building + running the upstream NimBLE host test suite");
-    let status = Command::new("cargo")
-        .current_dir(root().join("tests/upstream"))
-        .args(["run"])
-        .status()?;
-    if !status.success() {
-        bail!("upstream test suite FAILED");
+    if btvirt(0, 1)? {
+        println!("\ne2e PASSED (btvirt)");
+    } else {
+        println!("\ne2e SKIPPED (btvirt prerequisites not met)");
     }
-    println!("\nitest PASSED (upstream host test suite)");
     Ok(())
 }
+

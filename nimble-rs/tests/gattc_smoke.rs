@@ -16,7 +16,10 @@ use nimble_rs::gatt::client::GattcEvent;
 use nimble_rs::l2cap::{L2capChan, L2capEvent, SendOutcome};
 use nimble_rs::{BleAddr, BleDriver, ForTransport, HostEvent};
 
-use nimble_rs_examples_std::mock::{self, MockController};
+#[path = "common/mock.rs"]
+mod mock;
+
+use mock::MockController;
 
 const PSM: u16 = 0x0080;
 
@@ -230,10 +233,12 @@ async fn host_att() -> heapless::Vec<u8, 128> {
     }
 }
 
-fn main() {
-    env_logger::builder()
+#[test]
+fn gattc_smoke() {
+    let _ = env_logger::builder()
         .filter_level(log::LevelFilter::Info)
-        .init();
+        .is_test(true)
+        .try_init();
 
     let driver = BleDriver::new().expect("driver init");
     driver.host_subscribe(&on_host_event);

@@ -7,6 +7,10 @@
 //! [`inject_event`] / [`inject_acl`] - enough to simulate a central
 //! connecting and exchanging ATT traffic, hermetically (no HCI hardware, no
 //! privileges).
+//!
+//! Shared by the integration tests via `#[path]` inclusion; each test binary
+//! uses a different slice of this API.
+#![allow(dead_code)]
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

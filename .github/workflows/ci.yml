@@ -21,9 +21,9 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace -- -D warnings
+      - run: cargo clippy --workspace --exclude nimble-rs-upstream-tests -- -D warnings
 
-  # Build + the hermetic smoke gates (mock controller: no hardware, no
+  # Build + the hermetic integration tests (mock controller: no hardware, no
   # privileges) + the feature matrix
   test:
     runs-on: ubuntu-latest
@@ -33,12 +33,9 @@ jobs:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
       - name: Build workspace
-        run: cargo build --workspace
-      - name: Hermetic smoke gates
-        run: |
-          ./target/debug/smoke
-          ./target/debug/gatts_smoke
-          ./target/debug/gattc_smoke
+        run: cargo build --workspace --exclude nimble-rs-upstream-tests
+      - name: Hermetic integration tests
+        run: cargo test -p nimble-rs --features l2cap
       - name: Feature matrix (nimble-rs-sys)
         run: |
           cargo build -p nimble-rs-sys --no-default-features --features peripheral
@@ -62,12 +59,8 @@ jobs:
         with:
           targets: i686-unknown-linux-gnu
       - run: sudo apt-get update && sudo apt-get install -y gcc-multilib
-      - name: Build + run the hermetic gates on i686
-        run: |
-          cargo build --target i686-unknown-linux-gnu -p nimble-rs-examples-std
-          ./target/i686-unknown-linux-gnu/debug/smoke
-          ./target/i686-unknown-linux-gnu/debug/gatts_smoke
-          ./target/i686-unknown-linux-gnu/debug/gattc_smoke
+      - name: Run the hermetic integration tests on i686
+        run: cargo test --target i686-unknown-linux-gnu -p nimble-rs --features l2cap
 
   macos:
     runs-on: macos-latest
@@ -76,12 +69,10 @@ jobs:
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build + run the hermetic gates
+      - name: Build + run the hermetic integration tests
         run: |
-          cargo build --workspace
-          ./target/debug/smoke
-          ./target/debug/gatts_smoke
-          ./target/debug/gattc_smoke
+          cargo build --workspace --exclude nimble-rs-upstream-tests
+          cargo test -p nimble-rs --features l2cap
 
   asan:
     runs-on: ubuntu-latest
@@ -92,15 +83,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rust-src
-      - name: Build + run the hermetic gates under ASAN
+      - name: Run the hermetic integration tests under ASAN
         env:
           RUSTFLAGS: -Zsanitizer=address
           CFLAGS: -fsanitize=address
-        run: |
-          cargo build -Zbuild-std --target x86_64-unknown-linux-gnu -p nimble-rs-examples-std
-          ./target/x86_64-unknown-linux-gnu/debug/smoke
-          ./target/x86_64-unknown-linux-gnu/debug/gatts_smoke
-          ./target/x86_64-unknown-linux-gnu/debug/gattc_smoke
+        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -p nimble-rs --features l2cap
 
   # The real-controller tier over BlueZ btvirt virtual devices. Kernel/module
   # availability varies across runner images, so failures here do not (yet)
@@ -130,16 +117,18 @@ jobs:
                cap_net_admin+ep target/debug/l2cap
       - run: cargo xtask e2e
 
-  # The upstream NimBLE host test suite (esp-nimble's nimble/host/test, ~208
-  # cases) running against nimble-rs' porting layer - see tests/upstream.
-  itest-upstream:
+  # The upstream NimBLE host unit test suite (esp-nimble's nimble/host/test,
+  # ~208 cases) running against nimble-rs' porting layer - see tests/upstream
+  # (workspace member, but never built in the same invocation as the other
+  # members - see the root manifest).
+  upstream-host-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo xtask itest
+      - run: cargo run -p nimble-rs-upstream-tests
 
   # The published nimble-rs-sys package must stay well under the crates.io
   # limit despite bundling the esp-nimble submodule (see package.exclude).

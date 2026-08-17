@@ -15,7 +15,10 @@ use embassy_futures::select::{select, Either};
 
 use nimble_rs::{BleDriver, ForTransport, HostEvent};
 
-use nimble_rs_examples_std::mock::MockController;
+#[path = "common/mock.rs"]
+mod mock;
+
+use mock::MockController;
 
 static SYNCED: AtomicBool = AtomicBool::new(false);
 
@@ -32,10 +35,12 @@ fn threads() -> usize {
         .unwrap_or(0)
 }
 
-fn main() {
-    env_logger::builder()
+#[test]
+fn smoke() {
+    let _ = env_logger::builder()
         .filter_level(log::LevelFilter::Debug)
-        .init();
+        .is_test(true)
+        .try_init();
 
     // Two full init -> sync -> deinit cycles, verifying that the singleton can
     // be re-created after a clean shutdown

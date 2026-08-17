@@ -717,6 +717,8 @@ dependencies = [
  "embedded-io 0.7.1",
  "embedded-io-async 0.7.0",
  "enumset",
+ "env_logger",
+ "futures-lite",
  "heapless 0.9.3",
  "log",
  "nimble-rs-sys",
@@ -749,6 +751,18 @@ dependencies = [
  "anyhow",
  "bindgen",
  "cc",
+]
+
+[[package]]
+name = "nimble-rs-upstream-tests"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "embassy-time",
+ "env_logger",
+ "log",
+ "nimble-rs",
+ "nimble-rs-sys",
 ]
 
 [[package]]

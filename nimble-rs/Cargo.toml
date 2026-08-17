@@ -5,9 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Safe, async, cross-platform Rust API for the esp-nimble BLE host, over any bt-hci controller"
+description = "Safe, no_std, cross-platform Rust API for the esp-nimble BLE host, over any bt-hci controller"
 documentation = "https://docs.rs/nimble-rs"
-readme = "../README.md"
+readme = "README.md"
 categories = ["embedded", "api-bindings", "hardware-support"]
 keywords = ["ble", "bluetooth", "nimble", "embedded", "async"]
 
@@ -72,3 +72,20 @@ embedded-io-async = { workspace = true }
 enumset = { workspace = true }
 log = { workspace = true, optional = true }
 defmt = { workspace = true, optional = true }
+
+# The hermetic integration tests (tests/*.rs) drive the full host over an
+# in-process mock controller - each file is its own binary, so each scenario
+# gets a fresh process for the singleton host.
+[dev-dependencies]
+embassy-futures = { workspace = true }
+embassy-sync = { workspace = true }
+embassy-time = { workspace = true, features = ["std", "generic-queue-16"] }
+embedded-io = { workspace = true }
+heapless = { workspace = true }
+futures-lite = "2"
+log = { version = "0.4", features = ["std"] }
+env_logger = "0.11"
+
+[[test]]
+name = "gattc_smoke"
+required-features = ["l2cap"]
