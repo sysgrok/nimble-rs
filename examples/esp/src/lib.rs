@@ -1,19 +1,16 @@
-//! The shared GATT server example on Espressif chips (default: ESP32-C6),
-//! over the esp-radio Bluetooth connector wrapped in the stock
-//! `bt_hci::controller::ExternalController`.
+//! Shared board bring-up for the Espressif examples (default: ESP32-C6):
+//! heap, esp-rtos, and the esp-radio Bluetooth connector wrapped in the
+//! stock `bt_hci::controller::ExternalController`.
 //!
-//! Also demonstrates a custom [`Parker`]: `EspRtosParker` below parks the
-//! calling esp-rtos task on its thread semaphore instead of busy-polling.
-//!
-//! Run with e.g. `cargo esp32c6` (needs `espflash` and an attached board).
+//! Also home of [`EspRtosParker`], an example of a custom
+//! [`Parker`](nimble_rs::Parker): it parks the calling esp-rtos task on its
+//! thread semaphore instead of busy-polling.
 
 #![no_std]
-#![no_main]
 
 use core::task::{RawWaker, RawWakerVTable, Waker};
 
 use bt_hci::controller::ExternalController;
-use embassy_executor::Spawner;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::timer::timg::TimerGroup;
@@ -22,7 +19,8 @@ use esp_radio_rtos_driver::semaphore::SemaphoreHandle;
 
 use nimble_rs::Parker;
 
-esp_bootloader_esp_idf::esp_app_desc!();
+/// The controller every example runs on.
+pub type Controller = ExternalController<BleConnector<'static>, 1>;
 
 /// A [`Parker`] over esp-rtos: parks the calling task on its *thread
 /// semaphore* (a per-task binary semaphore the RTOS maintains), so a blocked
@@ -31,7 +29,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 /// The semaphore latches like a counting primitive: a wake landing between
 /// the caller's condition re-check and the `take` leaves it given, so the
 /// `take` falls straight through - no lost wake-ups.
-struct EspRtosParker;
+pub struct EspRtosParker;
 
 impl Parker for EspRtosParker {
     fn ctx_id(&self) -> usize {
@@ -66,8 +64,12 @@ impl Parker for EspRtosParker {
     }
 }
 
-#[esp_rtos::main]
-async fn main(_spawner: Spawner) {
+/// The parker instance the examples inject.
+pub static PARKER: EspRtosParker = EspRtosParker;
+
+/// Brings the board up (heap, esp-rtos scheduler) and returns the Bluetooth
+/// controller.
+pub fn controller() -> Controller {
     esp_println::logger::init_logger_from_env();
 
     let peripherals = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
@@ -83,8 +85,5 @@ async fn main(_spawner: Spawner) {
     esp_rtos::start(timg0.timer0, software_interrupt.software_interrupt0);
 
     let connector = BleConnector::new(peripherals.BT, Default::default()).unwrap();
-    let controller = ExternalController::<_, 1>::new(connector);
-
-    static PARKER: EspRtosParker = EspRtosParker;
-    nimble_rs_examples_app::gatt_server(controller, Some(&PARKER)).await
+    ExternalController::new(connector)
 }

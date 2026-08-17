@@ -1,13 +1,9 @@
-//! The shared GATT server example on a Raspberry Pi Pico W (RP2040), over
-//! the cyw43 radio's Bluetooth HCI transport wrapped in the stock
-//! `bt_hci::controller::ExternalController`.
-//!
-//! No parker is injected: the built-in `WfeParker` default applies.
-//!
-//! Run with `cargo run --release` (needs `probe-rs` and an attached board).
+//! Shared board bring-up for the Raspberry Pi Pico W examples: heap, the
+//! cyw43 radio, and its Bluetooth HCI transport wrapped in the stock
+//! `bt_hci::controller::ExternalController`. No parker is injected by the
+//! examples: the built-in `WfeParker` default applies.
 
 #![no_std]
-#![no_main]
 
 use core::mem::MaybeUninit;
 use core::ptr::addr_of_mut;
@@ -25,16 +21,14 @@ use embedded_alloc::LlffHeap;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _, tinyrlibc as _};
 
+/// The controller every example runs on.
+pub type Controller = ExternalController<cyw43::bluetooth::BtDriver<'static>, 1>;
+
 // The C heap backing `nimble-rs`'s `use-c-heap` (see the nrf example)
 #[global_allocator]
 static HEAP: LlffHeap = LlffHeap::empty();
 
 const HEAP_SIZE: usize = 16 * 1024;
-
-bind_interrupts!(struct Irqs {
-    PIO0_IRQ_0 => InterruptHandler<PIO0>;
-    DMA_IRQ_0 => dma::InterruptHandler<DMA_CH0>, dma::InterruptHandler<DMA_CH1>;
-});
 
 // ARM RTABI helpers for unaligned accesses, which LLVM emits on ARMv6-M for
 // `ptr::read_unaligned`/`write_unaligned` of multi-byte values (bt-hci's
@@ -69,6 +63,11 @@ mod aeabi_unaligned {
     }
 }
 
+bind_interrupts!(struct Irqs {
+    PIO0_IRQ_0 => InterruptHandler<PIO0>;
+    DMA_IRQ_0 => dma::InterruptHandler<DMA_CH0>, dma::InterruptHandler<DMA_CH1>;
+});
+
 #[embassy_executor::task]
 async fn cyw43_task(
     runner: cyw43::Runner<
@@ -80,8 +79,8 @@ async fn cyw43_task(
     runner.run().await
 }
 
-#[embassy_executor::main]
-async fn main(spawner: Spawner) {
+/// Brings the board up and returns the Bluetooth controller.
+pub async fn controller(spawner: Spawner) -> Controller {
     {
         static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { HEAP.init(addr_of_mut!(HEAP_MEM) as usize, HEAP_SIZE) }
@@ -116,7 +115,5 @@ async fn main(spawner: Spawner) {
     spawner.spawn(unwrap!(cyw43_task(runner)));
     control.init(clm).await;
 
-    let controller = ExternalController::<_, 1>::new(bt_device);
-
-    nimble_rs_examples_app::gatt_server(controller, None).await
+    ExternalController::new(bt_device)
 }

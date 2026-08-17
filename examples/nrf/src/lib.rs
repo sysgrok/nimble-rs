@@ -1,14 +1,10 @@
-//! The shared GATT server example on an nRF52840, over the nrf-sdc
-//! SoftDevice Controller.
-//!
-//! nrf-sdc implements the stock bt-hci typed-command traits natively, so it
-//! satisfies `nimble_rs::Controller` as-is. No parker is injected: the
-//! built-in `WfeParker` default applies (SDC wakes arrive from interrupts).
-//!
-//! Run with `cargo run --release` (needs `probe-rs` and an attached board).
+//! Shared board bring-up for the nRF52840 examples: heap, MPSL, and the
+//! nrf-sdc SoftDevice Controller - which implements the stock bt-hci
+//! typed-command traits natively, so it satisfies `nimble_rs::Controller`
+//! as-is (no transport, no adapter). No parker is injected by the examples:
+//! the built-in `WfeParker` default applies.
 
 #![no_std]
-#![no_main]
 
 use core::mem::MaybeUninit;
 use core::ptr::addr_of_mut;
@@ -46,21 +42,10 @@ async fn mpsl_task(mpsl: &'static MultiprotocolServiceLayer<'static>) -> ! {
     mpsl.run().await
 }
 
-fn build_sdc<'d, const N: usize>(
-    p: nrf_sdc::Peripherals<'d>,
-    rng: &'d mut rng::Rng<Async>,
-    mpsl: &'d MultiprotocolServiceLayer,
-    mem: &'d mut sdc::Mem<N>,
-) -> Result<nrf_sdc::SoftdeviceController<'d>, nrf_sdc::Error> {
-    sdc::Builder::new()?
-        .support_adv()
-        .support_peripheral()
-        .peripheral_count(1)?
-        .build(p, rng, mpsl, mem)
-}
-
-#[embassy_executor::main]
-async fn main(spawner: Spawner) {
+/// Brings the board up and returns the SoftDevice Controller (advertising,
+/// peripheral, scanning and central roles enabled - the examples use
+/// different subsets).
+pub fn controller(spawner: Spawner) -> nrf_sdc::SoftdeviceController<'static> {
     {
         static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { HEAP.init(addr_of_mut!(HEAP_MEM) as usize, HEAP_SIZE) }
@@ -88,10 +73,21 @@ async fn main(spawner: Spawner) {
         p.PPI_CH25, p.PPI_CH26, p.PPI_CH27, p.PPI_CH28, p.PPI_CH29,
     );
 
-    let mut rng = rng::Rng::new(p.RNG, Irqs);
+    static RNG_CELL: StaticCell<rng::Rng<'static, Async>> = StaticCell::new();
+    let rng = RNG_CELL.init(rng::Rng::new(p.RNG, Irqs));
 
-    let mut sdc_mem = sdc::Mem::<4720>::new();
-    let sdc = unwrap!(build_sdc(sdc_p, &mut rng, mpsl, &mut sdc_mem));
+    // Sized per nrf-sdc's own report for this role configuration (it warns
+    // with the exact requirement when the buffer is off)
+    static SDC_MEM: StaticCell<sdc::Mem<3312>> = StaticCell::new();
+    let sdc_mem = SDC_MEM.init(sdc::Mem::new());
 
-    nimble_rs_examples_app::gatt_server(sdc, None).await
+    unwrap!(sdc::Builder::new()
+        .and_then(|builder| builder
+            .support_adv()
+            .support_peripheral()
+            .support_scan()
+            .support_central()
+            .peripheral_count(1)?
+            .central_count(1))
+        .and_then(|builder| builder.build(sdc_p, rng, mpsl, sdc_mem)))
 }
