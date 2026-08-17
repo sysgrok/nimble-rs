@@ -5,11 +5,12 @@
 //! ownership tracking, a `Waker` it can hand out, and a way to sleep until
 //! that waker is woken (or a deadline passes).
 //!
-//! Two implementations ship with the crate: [`SpinParker`] (the universal
-//! `no_std` fallback) and, with the `std` feature, [`StdParker`] (real
-//! `thread::park_timeout`, no spinning). Platforms with better primitives
-//! (WFE/SEV, an esp-rtos semaphore, ...) implement [`Parker`] themselves and
-//! inject it at driver construction
+//! Three implementations ship with the crate, and the best one for the
+//! target is the default: [`StdParker`] (real `thread::park_timeout`) with
+//! the `std` feature, [`WfeParker`] on bare-metal ARM, and [`SpinParker`]
+//! (the universal busy-poll fallback) elsewhere. Platforms with better
+//! primitives (an esp-rtos semaphore, ...) implement [`Parker`] themselves
+//! and inject it at driver construction
 //! ([`Ble::new_with_parker`](crate::Ble::new_with_parker)); the
 //! active parker lives in a process-wide slot because the NPL entry points
 //! are reached from C with no driver reference in hand.
@@ -208,7 +209,15 @@ fn default_parker() -> &'static dyn Parker {
         static DEFAULT: StdParker = StdParker;
         &DEFAULT
     }
-    #[cfg(not(feature = "std"))]
+    #[cfg(all(not(feature = "std"), target_arch = "arm", target_os = "none"))]
+    {
+        static DEFAULT: WfeParker = WfeParker;
+        &DEFAULT
+    }
+    #[cfg(all(
+        not(feature = "std"),
+        not(all(target_arch = "arm", target_os = "none"))
+    ))]
     {
         static DEFAULT: SpinParker = SpinParker;
         &DEFAULT
