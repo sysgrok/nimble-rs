@@ -145,6 +145,36 @@ jobs:
           cargo clippy --release -- -D warnings
           cargo build --release
         working-directory: examples/esp
+      # Flash/RAM size tracking (the CHIP memdf toolkit under
+      # .github/scripts/memory): one report per example binary, uploaded as
+      # an artifact; the Bloat Check workflow (bloat-check.yaml) compares
+      # them across commits/PRs and comments on regressions.
+      - name: Set up environment for size reports
+        uses: ./.github/actions/setup-size-reports
+        if: ${{ !env.ACT }}
+        with:
+          gh-context: ${{ toJson(github) }}
+      - name: Prepare bloat report from the previous builds
+        run: |
+          for bin in gatt_server gatt_client scanner; do
+            python .github/scripts/memory/gh_sizes.py \
+              nrf52_$bin defmtlogs-optz-ltofat thumbv7em-none-eabi \
+              examples/nrf/target/thumbv7em-none-eabi/release/$bin \
+              /tmp/bloat_reports/
+            python .github/scripts/memory/gh_sizes.py \
+              rp_$bin defmtlogs-optz-ltofat thumbv6m-none-eabi \
+              examples/rp/target/thumbv6m-none-eabi/release/$bin \
+              /tmp/bloat_reports/
+            python .github/scripts/memory/gh_sizes.py \
+              esp_$bin infologs-opts-ltofat riscv32imac-unknown-none-elf \
+              examples/esp/target/riscv32imac-unknown-none-elf/release/$bin \
+              /tmp/bloat_reports/
+          done
+      - name: Uploading Size Reports
+        uses: ./.github/actions/upload-size-reports
+        if: ${{ !env.ACT }}
+        with:
+          platform-name: cross-platform
 
   macos:
     name: macOS build + tests

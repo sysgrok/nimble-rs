@@ -34,10 +34,13 @@ static_cell = "2"
 portable-atomic = { version = "1.5", features = ["critical-section"] }
 
 [profile.release]
-debug = 2
-lto = "fat"
 opt-level = "z"
+debug = 2
+debug-assertions = false
+lto = "fat"
 codegen-units = 1
+incremental = false
+overflow-checks = false
 
 # Same embassy-family patch set as rs-matter-embassy (cyw43 with Bluetooth
 # needs a newer embassy than the released crates)
