@@ -53,6 +53,9 @@ defmt-rtt = "1"
 panic-probe = { version = "1", features = ["print-defmt"] }
 static_cell = "2"
 
+[profile.dev]
+opt-level = "s"
+
 [profile.release]
 opt-level = "z"
 debug = 2

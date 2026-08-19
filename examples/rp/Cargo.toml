@@ -35,6 +35,9 @@ static_cell = "2"
 # thumbv6-m has no CAS instructions; several dependencies need this fallback
 portable-atomic = { version = "1.5", features = ["critical-section"] }
 
+[profile.dev]
+opt-level = "s"
+
 [profile.release]
 opt-level = "z"
 debug = 2
