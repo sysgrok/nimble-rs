@@ -16,6 +16,8 @@ bt-hci = { version = "0.9", default-features = false, features = ["defmt"] }
 embassy-executor = { version = "0.10", default-features = false, features = ["platform-cortex-m", "executor-thread", "defmt"] }
 embassy-time = { version = "0.5", default-features = false, features = ["defmt"] }
 embassy-rp = { version = "0.10", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp2040"] }
+embassy-futures = "0.1"
+embedded-io = "0.7"
 cyw43 = { version = "0.7", features = ["firmware-logs", "defmt", "bluetooth"] }
 cyw43-pio = "0.10"
 

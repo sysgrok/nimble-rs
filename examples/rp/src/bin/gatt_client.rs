@@ -9,7 +9,9 @@
 use embassy_executor::Spawner;
 
 #[embassy_executor::main]
-async fn main(spawner: Spawner) {
-    let controller = nimble_rs_examples_rp::controller(spawner).await;
-    nimble_rs_examples_app::gatt_client::run(controller, None).await
+async fn main(_spawner: Spawner) {
+    nimble_rs_examples_rp::run(async |controller| {
+        nimble_rs_examples_app::gatt_client::run(controller, None).await
+    })
+    .await
 }
