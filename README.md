@@ -1,7 +1,7 @@
 # nimble-rs
 
 [![CI](https://github.com/sysgrok/nimble-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/sysgrok/nimble-rs/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/openthread.svg)](https://crates.io/crates/openthread)
+[![crates.io](https://img.shields.io/crates/v/nimble-rs.svg)](https://crates.io/crates/nimble-rs)
 [![Matrix](https://img.shields.io/matrix/esp-rs:matrix.org?label=join%20matrix&color=BEC5C9&logo=matrix)](https://matrix.to/#/#esp-rs:matrix.org)
 
 This repository hosts the [nimble-rs](nimble-rs), [nimble-rs-sys](nimble-rs-sys), [examples](examples) and [tests](tests) crates.
