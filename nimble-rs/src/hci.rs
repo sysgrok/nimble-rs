@@ -37,10 +37,9 @@ use bt_hci::{ControllerToHostPacket, FromHciBytes, WriteHci};
 
 #[cfg(any(feature = "central", feature = "peripheral"))]
 use bt_hci::cmd::le::{
-    LeAddDeviceToFilterAcceptList, LeClearFilterAcceptList, LeConnUpdate, LeReadChannelMap,
+    LeAddDeviceToFilterAcceptList, LeClearFilterAcceptList, LeReadChannelMap,
     LeReadFilterAcceptListSize, LeReadRemoteFeatures, LeReadSuggestedDefaultDataLength,
-    LeRemoveDeviceFromFilterAcceptList, LeSetDataLength, LeSetHostChannelClassification,
-    LeWriteSuggestedDefaultDataLength,
+    LeRemoveDeviceFromFilterAcceptList, LeSetDataLength, LeWriteSuggestedDefaultDataLength,
 };
 #[cfg(any(feature = "central", feature = "peripheral"))]
 use bt_hci::cmd::link_control::{Disconnect, ReadRemoteVersionInformation};
@@ -60,7 +59,9 @@ use bt_hci::cmd::le::{
 use bt_hci::cmd::le::{LeSetScanEnable, LeSetScanParams};
 
 #[cfg(feature = "central")]
-use bt_hci::cmd::le::{LeCreateConn, LeCreateConnCancel};
+use bt_hci::cmd::le::{
+    LeConnUpdate, LeCreateConn, LeCreateConnCancel, LeSetHostChannelClassification,
+};
 
 #[cfg(any(feature = "sm", feature = "sm-sc-only"))]
 use bt_hci::cmd::le::{
@@ -148,6 +149,14 @@ impl<
 
 /// Connection management commands (any connectable/initiating role).
 ///
+/// Role-agnostic only. `LE Connection Update` and `LE Set Host Channel
+/// Classification` are *not* here even though they act on a connection: the
+/// Core spec allows them only when the controller is the Central, so they
+/// live in [`CentralCmds`]. Requiring them here would make a peripheral-only
+/// build demand impls a peripheral-only controller need not have - which for
+/// nrf-sdc is a link failure, as its peripheral-only SoftDevice blob does not
+/// export the corresponding symbols.
+///
 /// Deliberately absent: the LE Remote Connection Parameter Request
 /// reply/negative-reply pair. nrf-sdc's serialized API does not expose them
 /// at all - so the dispatcher instead keeps the corresponding event masked
@@ -158,14 +167,12 @@ impl<
 pub trait ConnCmds:
     bt_hci::controller::Controller
     + ControllerCmdSync<Disconnect>
-    + ControllerCmdAsync<LeConnUpdate>
     + ControllerCmdAsync<LeReadRemoteFeatures>
     + ControllerCmdAsync<ReadRemoteVersionInformation>
     + ControllerCmdSync<LeSetDataLength>
     + ControllerCmdSync<LeReadSuggestedDefaultDataLength>
     + ControllerCmdSync<LeWriteSuggestedDefaultDataLength>
     + ControllerCmdSync<LeReadChannelMap>
-    + ControllerCmdSync<LeSetHostChannelClassification>
     + ControllerCmdSync<ReadRssi>
     + ControllerCmdSync<LeAddDeviceToFilterAcceptList>
     + ControllerCmdSync<LeRemoveDeviceFromFilterAcceptList>
@@ -178,14 +185,12 @@ pub trait ConnCmds:
 impl<
         C: bt_hci::controller::Controller
             + ControllerCmdSync<Disconnect>
-            + ControllerCmdAsync<LeConnUpdate>
             + ControllerCmdAsync<LeReadRemoteFeatures>
             + ControllerCmdAsync<ReadRemoteVersionInformation>
             + ControllerCmdSync<LeSetDataLength>
             + ControllerCmdSync<LeReadSuggestedDefaultDataLength>
             + ControllerCmdSync<LeWriteSuggestedDefaultDataLength>
             + ControllerCmdSync<LeReadChannelMap>
-            + ControllerCmdSync<LeSetHostChannelClassification>
             + ControllerCmdSync<ReadRssi>
             + ControllerCmdSync<LeAddDeviceToFilterAcceptList>
             + ControllerCmdSync<LeRemoveDeviceFromFilterAcceptList>
@@ -253,12 +258,21 @@ pub trait ScanCmds: bt_hci::controller::Controller {}
 #[cfg(not(feature = "observer"))]
 impl<C: bt_hci::controller::Controller> ScanCmds for C {}
 
-/// Connection initiation commands (`central`).
+/// Connection initiation commands, plus the connection commands the Core spec
+/// restricts to the Central role (`central`).
+///
+/// `LE Connection Update` and `LE Set Host Channel Classification` are here
+/// rather than in [`ConnCmds`] because a peripheral never emits them:
+/// `ble_gap_update_params` falls over to the L2CAP Connection Parameter Update
+/// procedure when the connection is the slave, and the host has no internal
+/// caller for `ble_hs_hci_set_chan_class` at all.
 #[cfg(feature = "central")]
 pub trait CentralCmds:
     bt_hci::controller::Controller
     + ControllerCmdAsync<LeCreateConn>
     + ControllerCmdSync<LeCreateConnCancel>
+    + ControllerCmdAsync<LeConnUpdate>
+    + ControllerCmdSync<LeSetHostChannelClassification>
 {
 }
 
@@ -266,7 +280,9 @@ pub trait CentralCmds:
 impl<
         C: bt_hci::controller::Controller
             + ControllerCmdAsync<LeCreateConn>
-            + ControllerCmdSync<LeCreateConnCancel>,
+            + ControllerCmdSync<LeCreateConnCancel>
+            + ControllerCmdAsync<LeConnUpdate>
+            + ControllerCmdSync<LeSetHostChannelClassification>,
     > CentralCmds for C
 {
 }
@@ -499,14 +515,12 @@ async fn send_cmd<C: Controller>(controller: &C, raw: &[u8]) {
     #[cfg(any(feature = "central", feature = "peripheral"))]
     {
         sync!(Disconnect);
-        nb!(LeConnUpdate);
         nb!(LeReadRemoteFeatures);
         nb!(ReadRemoteVersionInformation);
         sync!(LeSetDataLength);
         sync!(LeReadSuggestedDefaultDataLength);
         sync!(LeWriteSuggestedDefaultDataLength);
         sync!(LeReadChannelMap);
-        sync!(LeSetHostChannelClassification);
         sync!(ReadRssi);
         sync!(LeAddDeviceToFilterAcceptList);
         sync!(LeRemoveDeviceFromFilterAcceptList);
@@ -532,6 +546,11 @@ async fn send_cmd<C: Controller>(controller: &C, raw: &[u8]) {
     {
         nb!(LeCreateConn);
         sync!(LeCreateConnCancel);
+        // Central-role only (see `CentralCmds`); a peripheral-only build lets
+        // these fall through to the unknown-command ack below, which the host
+        // never triggers because it cannot emit them in that configuration.
+        nb!(LeConnUpdate);
+        sync!(LeSetHostChannelClassification);
     }
 
     #[cfg(any(feature = "sm", feature = "sm-sc-only"))]
