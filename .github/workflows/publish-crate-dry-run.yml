@@ -21,7 +21,7 @@ jobs:
         with:
           # The `-sys` crate vendors its C sources from the esp-nimble git
           # submodule; it must be checked out so the packaged files exist.
-          submodules: true
+          submodules: recursive
       - name: Setup | Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Build | Publish Dry Run
