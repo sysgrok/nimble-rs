@@ -45,6 +45,7 @@ fn smoke() {
     println!("RE-INIT OK");
 }
 
+#[allow(unused)]
 fn cycle(parker: Option<&dyn Parker>) {
     let threads_at_start = threads();
 
