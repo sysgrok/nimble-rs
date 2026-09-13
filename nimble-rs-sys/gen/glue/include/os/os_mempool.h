@@ -35,6 +35,31 @@
 #include "os/os.h"
 #include "os/queue.h"
 
+/* nimble-rs: the host's mempool implementation (glue/src/os_mempool.c) is
+ * linked under a private prefix. The unprefixed names are not ours to define
+ * on Espressif targets: esp-radio exports them for the ESP32-C6/H2/C2
+ * controller blob (its own Rust port of an older ESP-IDF layout, without
+ * `mp_alloc_blocks`, i.e. with the extended-pool callbacks at a different
+ * offset than this header's), and the ESP32-C2 ROM owns `g_os_mempool_list`.
+ * Two definitions are a duplicate-symbol link error; sharing esp-radio's
+ * would misplace the transport's ACL put callback. Prefixed, host and
+ * controller each keep their own pools and their own implementation.
+ * Applies to every user, since all of them (including bindgen and the
+ * upstream test harness) see this header. */
+#define g_os_mempool_list nimble_rs_g_os_mempool_list
+#define os_mempool_module_init nimble_rs_os_mempool_module_init
+#define os_mempool_info_get_next nimble_rs_os_mempool_info_get_next
+#define os_mempool_init nimble_rs_os_mempool_init
+#define os_mempool_ext_init nimble_rs_os_mempool_ext_init
+#define os_mempool_unregister nimble_rs_os_mempool_unregister
+#define os_mempool_clear nimble_rs_os_mempool_clear
+#define os_mempool_ext_clear nimble_rs_os_mempool_ext_clear
+#define os_mempool_is_sane nimble_rs_os_mempool_is_sane
+#define os_memblock_from nimble_rs_os_memblock_from
+#define os_memblock_get nimble_rs_os_memblock_get
+#define os_memblock_put_from_cb nimble_rs_os_memblock_put_from_cb
+#define os_memblock_put nimble_rs_os_memblock_put
+
 #ifdef __cplusplus
 extern "C" {
 #endif
