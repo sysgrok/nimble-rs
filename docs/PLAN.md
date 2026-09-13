@@ -10,7 +10,7 @@ Reference roots:
 - `$N` = `/home/ivan/dev/esp-idf-svc/.embuild/espressif/esp-idf/v5.5.3/components/bt/host/nimble/nimble` (esp-nimble on disk; becomes submodule)
 - `$OT` = `/home/ivan/dev/openthread`, `$MB` = `/home/ivan/dev/mbedtls-rs` (structure/gen machinery to lift)
 - `$SVC` = `/home/ivan/dev/esp-idf-svc/src` (API to mirror)
-- `$BT` = `~/.cargo/registry/src/.../bt-hci-0.9.0`
+- `$BT` = `~/.cargo/registry/src/.../bt-hci-0.10.1`
 
 ## Verified architecture facts (drive the design)
 
@@ -74,7 +74,7 @@ Reference roots:
 ```
 nimble-rs/
 ├── Cargo.toml            # members=[nimble-rs-sys, nimble-rs, examples/std]; exclude=[tests, xtask]
-│                         # workspace.deps: bt-hci 0.9, embassy-sync/futures/time, heapless, log, defmt,
+│                         # workspace.deps: bt-hci 0.10, embassy-sync/futures/time, heapless, log, defmt,
 │                         # bindgen, cc; edition 2021, rust-version 1.85
 ├── .gitmodules           # nimble-rs-sys/esp-nimble → espressif/esp-nimble
 ├── LICENSE-MIT, LICENSE-APACHE, README.md, .github/workflows/ci.yml

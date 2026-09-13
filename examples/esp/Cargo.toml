@@ -13,18 +13,18 @@ publish = false
 nimble-rs = { path = "../../nimble-rs", features = ["log", "log-level-info"] }
 nimble-rs-examples-app = { path = "../app", features = ["log"] }
 
-bt-hci = { version = "0.9", default-features = false }
+bt-hci = { version = "0.10", default-features = false }
 
-esp-hal = { version = "~1.1", features = ["log-04", "unstable"] }
+esp-hal = { version = "~1.2", features = ["log-04", "unstable"] }
 esp-radio = { version = "1.0.0-beta.0", features = ["ble", "log-04", "unstable"] }
-esp-radio-rtos-driver = "0.3"
-esp-rtos = { version = "0.3", features = ["embassy", "esp-alloc", "esp-radio", "log-04"] }
+esp-radio-rtos-driver = "0.4"
+esp-rtos = { version = "0.4", features = ["embassy", "esp-alloc", "esp-radio", "log-04"] }
 # Provides the Rust global allocator AND the C malloc family - i.e. the C
 # heap for `nimble-rs`'s `use-c-heap`
-esp-alloc = "0.10"
-esp-backtrace = { version = "0.19", features = ["panic-handler", "println"] }
-esp-println = { version = "0.17", features = ["log-04"] }
-esp-bootloader-esp-idf = { version = "0.5", features = ["log-04"] }
+esp-alloc = "0.11"
+esp-backtrace = { version = "0.20", features = ["panic-handler", "println"] }
+esp-println = { version = "0.18", features = ["log-04"] }
+esp-bootloader-esp-idf = { version = "0.6", features = ["log-04"] }
 
 embassy-executor = "0.10"
 embassy-time = "0.5"
@@ -51,15 +51,18 @@ codegen-units = 1
 incremental = false
 overflow-checks = false
 
-# Same esp-hal revision as rs-matter-embassy pins
+# A recent esp-hal revision: the released esp-radio (1.0.0-beta.0) predates
+# bt-hci 0.10, whereas git main speaks the `bt-hci-transport` trait bt-hci
+# 0.10 is built on (esp-radio itself still lists bt-hci 0.9 for its legacy
+# transport impl, which is why two bt-hci versions appear in the lockfile)
 [patch.crates-io]
-esp-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
-esp-rtos = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
-esp-radio-rtos-driver = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
-esp-alloc = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
-esp-backtrace = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
-esp-println = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
-esp-radio = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
-esp-storage = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
-esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
-esp-metadata-generated = { git = "https://github.com/esp-rs/esp-hal", rev = "ab45d33cf69f941e5bd8b939b9a4ad0e68bd6b7d" }
+esp-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }
+esp-rtos = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }
+esp-radio-rtos-driver = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }
+esp-alloc = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }
+esp-backtrace = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }
+esp-println = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }
+esp-radio = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }
+esp-storage = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }
+esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }
+esp-metadata-generated = { git = "https://github.com/esp-rs/esp-hal", rev = "0fed45c84c0723ed4e0b7d19c7f3078ed79090c6" }

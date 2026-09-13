@@ -14,14 +14,15 @@
 //!
 //! Requires the HCI device to be *down* and `CAP_NET_ADMIN`.
 
+use core::convert::Infallible;
 use core::mem;
 use std::io;
 use std::os::fd::{AsRawFd as _, FromRawFd as _, OwnedFd};
 
 use async_io::Async;
 
-use bt_hci::transport::{self, WithIndicator};
-use bt_hci::{ControllerToHostPacket, FromHciBytes as _, HostToControllerPacket, WriteHci as _};
+use bt_hci::transport::{self, PacketToController, PacketToHost, WithIndicator};
+use bt_hci::{PacketKind, ReadHciError};
 
 const BTPROTO_HCI: libc::c_int = 1;
 const HCI_CHANNEL_USER: libc::c_ushort = 1;
@@ -38,7 +39,7 @@ struct sockaddr_hci {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum Error {
-    FromHciBytesError(bt_hci::FromHciBytesError),
+    ReadHci(ReadHciError<Infallible>),
     Io(io::Error),
 }
 
@@ -56,9 +57,11 @@ impl embedded_io::Error for Error {
     }
 }
 
-impl From<bt_hci::FromHciBytesError> for Error {
-    fn from(e: bt_hci::FromHciBytesError) -> Self {
-        Self::FromHciBytesError(e)
+// `ExternalController` surfaces packet-parse failures through the transport
+// error type.
+impl From<ReadHciError<Infallible>> for Error {
+    fn from(e: ReadHciError<Infallible>) -> Self {
+        Self::ReadHci(e)
     }
 }
 
@@ -105,26 +108,29 @@ impl Transport {
 }
 
 impl transport::Transport for Transport {
-    async fn read<'a>(&self, rx: &'a mut [u8]) -> Result<ControllerToHostPacket<'a>, Self::Error> {
-        // One HCI packet per socket read on the user channel
+    async fn read<'a, P: PacketToHost<'a>>(&self, rx: &'a mut [u8]) -> Result<P, Self::Error> {
+        // One HCI packet per socket read on the user channel. The wire form
+        // (indicator byte + packet) lands in a scratch buffer; the packet is
+        // then parsed into `rx`, which is what the caller gets a view of.
+        let mut wire = vec![0u8; rx.len() + 1];
         let read = self
             .fd
             .read_with(|fd| {
-                let ret = unsafe { libc::read(fd.as_raw_fd(), rx.as_mut_ptr().cast(), rx.len()) };
+                let ret =
+                    unsafe { libc::read(fd.as_raw_fd(), wire.as_mut_ptr().cast(), wire.len()) };
                 usize::try_from(ret).map_err(|_| io::Error::last_os_error())
             })
             .await
             .map_err(Error::Io)?;
 
-        let packet = ControllerToHostPacket::from_hci_bytes_complete(
-            rx.get(..read)
-                .expect("more bytes read than the buffer holds"),
-        )
-        .map_err(Error::FromHciBytesError)?;
-        Ok(packet)
+        let mut data = wire
+            .get(..read)
+            .expect("more bytes read than the buffer holds");
+        let kind = PacketKind::read(&mut data).map_err(Error::ReadHci)?;
+        P::read_hci(kind, &mut data, rx).map_err(Error::ReadHci)
     }
 
-    async fn write<T: HostToControllerPacket>(&self, val: &T) -> Result<(), Self::Error> {
+    async fn write<T: PacketToController>(&self, val: &T) -> Result<(), Self::Error> {
         let mut buf = Vec::<u8>::new();
         WithIndicator::new(val).write_hci(&mut buf).unwrap();
 

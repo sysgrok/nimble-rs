@@ -12,10 +12,11 @@
 //! uses a different slice of this API.
 #![allow(dead_code)]
 
+use core::convert::Infallible;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use bt_hci::transport::Transport;
-use bt_hci::{ControllerToHostPacket, HostToControllerPacket, PacketKind};
+use bt_hci::transport::{PacketToController, PacketToHost, Transport};
+use bt_hci::{PacketKind, ReadHciError};
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
@@ -68,8 +69,8 @@ impl std::error::Error for MockError {}
 
 // `ExternalController` surfaces packet-parse failures through the transport
 // error type.
-impl From<bt_hci::FromHciBytesError> for MockError {
-    fn from(_: bt_hci::FromHciBytesError) -> Self {
+impl From<ReadHciError<Infallible>> for MockError {
+    fn from(_: ReadHciError<Infallible>) -> Self {
         Self
     }
 }
@@ -121,8 +122,6 @@ impl MockController {
         match opcode {
             // Read Local Version Information
             0x1001 => self.complete(opcode, &[0x0c, 0, 0, 0x0c, 0xff, 0xff, 0, 0]),
-            // Read Local Supported Commands: claim support for everything
-            0x1002 => self.complete(opcode, &[0xff; 64]),
             // Read Local Supported Features: LE supported, BR/EDR not supported
             0x1003 => self.complete(opcode, &[0, 0, 0, 0, 0x60, 0, 0, 0]),
             // Read Buffer Size (classic)
@@ -197,16 +196,14 @@ impl MockController {
 }
 
 impl Transport for MockController {
-    async fn read<'a>(&self, buf: &'a mut [u8]) -> Result<ControllerToHostPacket<'a>, Self::Error> {
+    async fn read<'a, P: PacketToHost<'a>>(&self, buf: &'a mut [u8]) -> Result<P, Self::Error> {
         let (kind, packet) = TO_HOST.receive().await;
-        buf[..packet.len()].copy_from_slice(&packet);
+        let mut data: &[u8] = &packet;
 
-        ControllerToHostPacket::from_hci_bytes_with_kind(kind, &buf[..packet.len()])
-            .map(|(packet, _)| packet)
-            .map_err(|_| MockError)
+        P::read_hci(kind, &mut data, buf).map_err(|_| MockError)
     }
 
-    async fn write<T: HostToControllerPacket>(&self, val: &T) -> Result<(), Self::Error> {
+    async fn write<T: PacketToController>(&self, val: &T) -> Result<(), Self::Error> {
         let mut raw = [0; 260];
         let size = val.size();
         val.write_hci(&mut raw[..size]).map_err(|_| MockError)?;

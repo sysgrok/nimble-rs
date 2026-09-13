@@ -177,6 +177,7 @@ async fn host_att() -> heapless::Vec<u8, 64> {
 }
 
 #[test]
+#[allow(unused)]
 fn gatts_smoke() {
     let _ = env_logger::builder()
         .filter_level(log::LevelFilter::Info)

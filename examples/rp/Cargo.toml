@@ -11,7 +11,7 @@ publish = false
 nimble-rs = { path = "../../nimble-rs", features = ["defmt", "log-level-info"] }
 nimble-rs-examples-app = { path = "../app", features = ["defmt"] }
 
-bt-hci = { version = "0.9", default-features = false, features = ["defmt"] }
+bt-hci = { version = "0.10", default-features = false, features = ["defmt"] }
 
 embassy-executor = { version = "0.10", default-features = false, features = ["platform-cortex-m", "executor-thread", "defmt"] }
 embassy-time = { version = "0.5", default-features = false, features = ["defmt"] }

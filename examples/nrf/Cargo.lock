@@ -78,10 +78,11 @@ checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
 
 [[package]]
 name = "bt-hci"
-version = "0.9.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f3c66fd0a41a3b3a5906847b1bf5516048ce083e24fa9341a0fa31d3b4cd73d"
+checksum = "f63b3d6f0ef006d9b87a075705d6c142b03681ad34090659647f0e227c1c667f"
 dependencies = [
+ "bt-hci-transport",
  "btuuid",
  "defmt 1.1.1",
  "embassy-sync 0.8.0",
@@ -89,6 +90,17 @@ dependencies = [
  "embedded-io-async 0.7.0",
  "futures-intrusive",
  "heapless 0.9.3",
+]
+
+[[package]]
+name = "bt-hci-transport"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ffb9819c69cf88877f5eebc8c5ade0ab50f2bf9475bbb3eb714d66c55b0cb64"
+dependencies = [
+ "defmt 1.1.1",
+ "embedded-io 0.7.1",
+ "embedded-io-async 0.7.0",
 ]
 
 [[package]]
@@ -968,8 +980,9 @@ dependencies = [
 
 [[package]]
 name = "nrf-mpsl"
-version = "0.3.0"
-source = "git+https://github.com/alexmoon/nrf-sdc.git?rev=f54b6389ffa2750d4d3a4f5435660cb66b47e51a#f54b6389ffa2750d4d3a4f5435660cb66b47e51a"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61c3fae25579f57d60d5cbc9b1838bc0c7f13539a5ede1667dc2e27fc0f539d2"
 dependencies = [
  "cfg-if",
  "cortex-m",
@@ -985,8 +998,9 @@ dependencies = [
 
 [[package]]
 name = "nrf-mpsl-sys"
-version = "0.2.1"
-source = "git+https://github.com/alexmoon/nrf-sdc.git?rev=f54b6389ffa2750d4d3a4f5435660cb66b47e51a#f54b6389ffa2750d4d3a4f5435660cb66b47e51a"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7e0f91bc35e6d8192106f8d2c24be600e97769024e82f1babc6b4fd5b7b8995"
 dependencies = [
  "bindgen",
  "doxygen-rs",
@@ -1005,9 +1019,11 @@ dependencies = [
 [[package]]
 name = "nrf-sdc"
 version = "0.4.0"
-source = "git+https://github.com/alexmoon/nrf-sdc.git?rev=f54b6389ffa2750d4d3a4f5435660cb66b47e51a#f54b6389ffa2750d4d3a4f5435660cb66b47e51a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5916d1521376d6876d0b0e3353e9affa03ce55daa9346188a5815db1c2eb84d"
 dependencies = [
  "bt-hci",
+ "bt-hci-transport",
  "critical-section",
  "defmt 1.1.1",
  "embassy-nrf",
@@ -1021,8 +1037,9 @@ dependencies = [
 
 [[package]]
 name = "nrf-sdc-sys"
-version = "0.2.1"
-source = "git+https://github.com/alexmoon/nrf-sdc.git?rev=f54b6389ffa2750d4d3a4f5435660cb66b47e51a#f54b6389ffa2750d4d3a4f5435660cb66b47e51a"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "974a5010cc3a61b43e82ee6f9a2bfd80d894c8720dad08b87376f8a3048c1ecf"
 dependencies = [
  "bindgen",
  "doxygen-rs",
