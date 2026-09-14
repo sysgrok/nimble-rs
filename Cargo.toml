@@ -23,7 +23,7 @@ repository = "https://github.com/sysgrok/nimble-rs"
 nimble-rs-sys = { version = "0.1.0", path = "nimble-rs-sys", default-features = false }
 nimble-rs = { version = "0.1.0", path = "nimble-rs" }
 
-bt-hci = "0.9"
+bt-hci = "0.10"
 embassy-sync = "0.7"
 embassy-futures = "0.1"
 embassy-time = "0.5"

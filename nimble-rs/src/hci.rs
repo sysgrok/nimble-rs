@@ -70,6 +70,7 @@ use bt_hci::cmd::le::{
 
 use embassy_futures::join::join;
 use embassy_futures::select::{select, Either};
+use embassy_futures::yield_now;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 
@@ -98,6 +99,13 @@ type Packet<const N: usize> = heapless::Vec<u8, N>;
 //
 
 /// Commands every configuration sends (startup, identity, privacy).
+///
+/// Deliberately absent: `Read Local Supported Commands`. The dispatcher
+/// answers it itself (see [`SUPPORTED_CMDS`]) rather than asking the
+/// controller: the answer is exactly the set of commands this contract
+/// forwards, and asking is not always possible - nrf-sdc binds the typed
+/// call to a SoftDevice entry point that nrfxlib 3.4.0 no longer exports,
+/// so merely requiring it there is a link failure.
 pub trait CoreCmds:
     bt_hci::controller::Controller
     + ControllerCmdSync<Reset>
@@ -105,7 +113,6 @@ pub trait CoreCmds:
     + ControllerCmdSync<SetEventMaskPage2>
     + ControllerCmdSync<LeSetEventMask>
     + ControllerCmdSync<ReadLocalVersionInformation>
-    + ControllerCmdSync<ReadLocalSupportedCmds>
     + ControllerCmdSync<ReadLocalSupportedFeatures>
     + ControllerCmdSync<ReadBdAddr>
     + ControllerCmdSync<LeReadBufferSize>
@@ -129,7 +136,6 @@ impl<
             + ControllerCmdSync<SetEventMaskPage2>
             + ControllerCmdSync<LeSetEventMask>
             + ControllerCmdSync<ReadLocalVersionInformation>
-            + ControllerCmdSync<ReadLocalSupportedCmds>
             + ControllerCmdSync<ReadLocalSupportedFeatures>
             + ControllerCmdSync<ReadBdAddr>
             + ControllerCmdSync<LeReadBufferSize>
@@ -458,6 +464,99 @@ where
     feed_event(evt[0], &evt[2..], false);
 }
 
+/// The `Supported Commands` mask the dispatcher answers `Read Local
+/// Supported Commands` with: exactly the commands it forwards in this
+/// configuration, i.e. what the [`Controller`] bound guarantees the
+/// controller implements (plus the command itself). Octet and bit positions
+/// follow the Core spec's Supported Commands table.
+///
+/// The host reads one bit of it: `Set Event Mask Page 2`, to decide whether
+/// to send that command at startup.
+const SUPPORTED_CMDS: [u8; 64] = {
+    let mut mask = [0u8; 64];
+
+    macro_rules! set {
+        ($($octet:literal / $bit:literal),* $(,)?) => {
+            $(mask[$octet] |= 1 << $bit;)*
+        };
+    }
+
+    // `CoreCmds` (and this command)
+    set!(
+        5 / 7,  // Reset
+        5 / 6,  // Set Event Mask
+        22 / 2, // Set Event Mask Page 2
+        25 / 0, // LE Set Event Mask
+        14 / 3, // Read Local Version Information
+        14 / 4, // Read Local Supported Commands
+        14 / 5, // Read Local Supported Features
+        15 / 1, // Read BD_ADDR
+        25 / 1, // LE Read Buffer Size (v1)
+        25 / 2, // LE Read Local Supported Features
+        27 / 7, // LE Rand
+        25 / 4, // LE Set Random Address
+        26 / 1, // LE Set Advertising Enable
+        35 / 1, // LE Set Address Resolution Enable
+        34 / 5, // LE Clear Resolving List
+        34 / 3, // LE Add Device To Resolving List
+        34 / 4, // LE Remove Device From Resolving List
+        39 / 2, // LE Set Privacy Mode
+        35 / 2, // LE Set Resolvable Private Address Timeout (v1)
+    );
+
+    // `ConnCmds`
+    #[cfg(any(feature = "central", feature = "peripheral"))]
+    set!(
+        0 / 5,  // Disconnect
+        27 / 5, // LE Read Remote Features
+        2 / 7,  // Read Remote Version Information
+        33 / 6, // LE Set Data Length
+        33 / 7, // LE Read Suggested Default Data Length
+        34 / 0, // LE Write Suggested Default Data Length
+        27 / 4, // LE Read Channel Map
+        15 / 5, // Read RSSI
+        27 / 0, // LE Add Device To Filter Accept List
+        27 / 1, // LE Remove Device From Filter Accept List
+        26 / 7, // LE Clear Filter Accept List
+        26 / 6, // LE Read Filter Accept List Size
+    );
+
+    // `AdvCmds`
+    #[cfg(feature = "broadcaster")]
+    set!(
+        25 / 5, // LE Set Advertising Parameters
+        25 / 7, // LE Set Advertising Data
+        26 / 0, // LE Set Scan Response Data
+        25 / 6, // LE Read Advertising Physical Channel Tx Power
+    );
+
+    // `ScanCmds`
+    #[cfg(feature = "observer")]
+    set!(
+        26 / 2, // LE Set Scan Parameters
+        26 / 3, // LE Set Scan Enable
+    );
+
+    // `CentralCmds`
+    #[cfg(feature = "central")]
+    set!(
+        26 / 4, // LE Create Connection
+        26 / 5, // LE Create Connection Cancel
+        27 / 2, // LE Connection Update
+        27 / 3, // LE Set Host Channel Classification
+    );
+
+    // `SmCmds`
+    #[cfg(any(feature = "sm", feature = "sm-sc-only"))]
+    set!(
+        28 / 0, // LE Enable Encryption
+        28 / 1, // LE Long Term Key Request Reply
+        28 / 2, // LE Long Term Key Request Negative Reply
+    );
+
+    mask
+};
+
 /// Dispatches one raw command packet from the C host.
 async fn send_cmd<C: Controller>(controller: &C, raw: &[u8]) {
     let opcode = u16::from_le_bytes([raw[0], raw[1]]);
@@ -497,7 +596,12 @@ async fn send_cmd<C: Controller>(controller: &C, raw: &[u8]) {
     }
     sync!(LeSetEventMask);
     sync!(ReadLocalVersionInformation);
-    sync!(ReadLocalSupportedCmds);
+    if opcode == <ReadLocalSupportedCmds as Cmd>::OPCODE.to_raw() {
+        // Answered here, never forwarded (see `CoreCmds`)
+        let evt = complete_ack(opcode, 0, Some(&SUPPORTED_CMDS));
+        feed_event(evt[0], &evt[2..], false);
+        return;
+    }
     sync!(ReadLocalSupportedFeatures);
     sync!(ReadBdAddr);
     sync!(LeReadBufferSize);
@@ -749,14 +853,19 @@ pub(crate) async fn pump<C: Controller>(controller: &C) -> core::convert::Infall
             }
         },
         async {
-            // RX
-            const RX_BUF: usize = if EVT_PACKET_MAX > ACL_PACKET_MAX {
-                EVT_PACKET_MAX
-            } else {
-                ACL_PACKET_MAX
-            } + 1;
-            let mut buf = [0; RX_BUF];
+            // RX: the controller owns the receive buffer type (a stack array
+            // for `ExternalController`, a pool slot for others), so one is
+            // obtained from it per packet
             loop {
+                let mut buf = match controller.alloc_buf() {
+                    Ok(buf) => buf,
+                    Err(_) => {
+                        error!("HCI read buffer allocation failed");
+                        yield_now().await;
+                        continue;
+                    }
+                };
+
                 match controller.read(&mut buf).await {
                     Ok(packet) => rx_dispatch(&packet),
                     Err(_) => error!("HCI read failed"),

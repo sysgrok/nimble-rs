@@ -39,7 +39,7 @@ embassy-time = { version = "0.5", default-features = false, features = ["defmt"]
 embassy-nrf = { version = "0.11", default-features = false, features = ["defmt", "gpiote", "unstable-pac", "rt", "time"] }
 
 nrf-sdc = { version = "0.4", default-features = false, features = ["defmt", "peripheral", "central"] }
-nrf-mpsl = { version = "0.3", default-features = false, features = ["defmt", "critical-section-impl"] }
+nrf-mpsl = { version = "0.4", default-features = false, features = ["defmt", "critical-section-impl"] }
 
 # The C heap for `nimble-rs`'s `use-c-heap`: tinyrlibc's malloc family over
 # the Rust global allocator, which embedded-alloc provides.
@@ -64,8 +64,3 @@ lto = "fat"
 codegen-units = 1
 incremental = false
 overflow-checks = false
-
-# Same nrf-sdc revision as rs-matter-embassy pins
-[patch.crates-io]
-nrf-sdc = { git = "https://github.com/alexmoon/nrf-sdc.git", rev = "f54b6389ffa2750d4d3a4f5435660cb66b47e51a" }
-nrf-mpsl = { git = "https://github.com/alexmoon/nrf-sdc.git", rev = "f54b6389ffa2750d4d3a4f5435660cb66b47e51a" }

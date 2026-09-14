@@ -29,6 +29,8 @@ extern "C" {
     static tu_suite_name: *const c_char;
     static tu_case_name: *const c_char;
 
+    // Under the private prefix the glue `os/os_mempool.h` applies
+    #[link_name = "nimble_rs_os_mempool_module_init"]
     fn os_mempool_module_init();
     fn os_msys_init();
     fn ble_buf_alloc() -> c_int;

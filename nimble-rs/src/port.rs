@@ -17,7 +17,9 @@ use crate::npl;
 
 extern "C" {
     // Declared only inside C sources (no public header); signatures per
-    // esp-nimble 039d2d62 `porting/nimble/src/*.c`.
+    // esp-nimble 039d2d62 `porting/nimble/src/*.c`. The mempool one carries
+    // the private prefix the glue `os/os_mempool.h` applies (see there).
+    #[link_name = "nimble_rs_os_mempool_module_init"]
     fn os_mempool_module_init();
     fn os_msys_init();
 }
