@@ -20,11 +20,11 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/sysgrok/nimble-rs"
 
 [workspace.dependencies]
-nimble-rs-sys = { version = "0.1.0", path = "nimble-rs-sys", default-features = false }
-nimble-rs = { version = "0.1.0", path = "nimble-rs" }
+nimble-rs-sys = { version = "0.2", path = "nimble-rs-sys", default-features = false }
+nimble-rs = { version = "0.2", path = "nimble-rs" }
 
 bt-hci = "0.10"
-embassy-sync = "0.7"
+embassy-sync = "0.8"
 embassy-futures = "0.1"
 embassy-time = "0.5"
 critical-section = "1"

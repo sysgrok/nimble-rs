@@ -6,7 +6,7 @@
 # for the per-chip build commands (the nRF54L family needs its own target).
 [package]
 name = "nimble-rs-examples-nrf"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.85"
 publish = false
