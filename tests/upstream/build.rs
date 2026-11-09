@@ -58,9 +58,11 @@ fn main() {
         .unwrap();
     let test_src = sys_root.join("esp-nimble/nimble/host/test/src");
     let testutil = sys_root.join("gen/vendored/testutil");
+    let harness_h = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("src/harness.h");
 
     println!("cargo::rerun-if-changed={}", test_src.display());
     println!("cargo::rerun-if-changed={}", testutil.display());
+    println!("cargo::rerun-if-changed={}", harness_h.display());
 
     let mut build = cc::Build::new();
 
@@ -99,6 +101,8 @@ fn main() {
     // ...and the mynewt kernel time API
     build.define("os_time_ms_to_ticks", "ble_npl_time_ms_to_ticks");
     build.define("os_time_ms_to_ticks32", "ble_npl_time_ms_to_ticks32");
+    // ...and the mynewt kernel heap (testutil's suite registry)
+    build.define("os_malloc", "malloc");
     // Not `ble_npl_os_started` (always true in nimble-rs): the test util
     // processes injected HCI events inline only while `!os_started()`, the
     // way Mynewt's selftest environment does - there is no host task/loop
@@ -125,6 +129,9 @@ fn main() {
     build
         .flag("-include")
         .flag("esp_err.h")
+        // Prototypes the C code needs but does not include itself
+        .flag("-include")
+        .flag(harness_h.to_str().unwrap())
         .warnings(false)
         .compile("nimble-upstream-tests");
 }
