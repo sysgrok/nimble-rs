@@ -132,6 +132,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: thumbv7em-none-eabi, thumbv8m.main-none-eabihf, thumbv6m-none-eabi, riscv32imac-unknown-none-elf
+      # bindgen (e.g. `nrf-mpsl-sys`) loads the newest libclang on the runner,
+      # but takes the builtin headers from the default `clang`. When the two
+      # versions differ (Ubuntu 26.04: 22 vs 21), `<stdint.h>` comes out empty.
+      # Use the libclang of the default `clang`.
+      - name: Match libclang to the default clang
+        run: echo "LIBCLANG_PATH=$(dirname "$(readlink -f "$(command -v clang)")")/../lib" >> "$GITHUB_ENV"
       - name: nrf52840 (nrf-sdc)
         run: |
           cargo clippy --release -- -D warnings
